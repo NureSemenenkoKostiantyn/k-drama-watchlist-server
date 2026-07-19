@@ -1,0 +1,80 @@
+name: drama-watch
+
+services:
+  mongodb:
+    image: mongo:8.0
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  api:
+    build:
+      context: .
+      target: development
+    init: true
+    environment:
+      NODE_ENV: development
+      PORT: "8080"
+      MONGODB_URI: mongodb://mongodb:27017/drama_watch
+      MONGODB_DB_NAME: drama_watch
+      LOG_LEVEL: debug
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8080/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
+
+  web:
+    build:
+      context: ../k-drama-watchlist-client
+      target: development
+    init: true
+    ports:
+      - "127.0.0.1:4200:4200"
+    depends_on:
+      api:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync
+          path: ../k-drama-watchlist-client/src
+          target: /app/src
+        - action: sync
+          path: ../k-drama-watchlist-client/public
+          target: /app/public
+        - action: rebuild
+          path: ../k-drama-watchlist-client/package.json
+        - action: rebuild
+          path: ../k-drama-watchlist-client/package-lock.json
+
+volumes:
+  mongodb_data:

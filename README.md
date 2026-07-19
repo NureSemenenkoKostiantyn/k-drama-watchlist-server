@@ -24,6 +24,20 @@ Better Auth, TMDB, and domain feature modules are intentionally deferred to late
 
 ## Local setup
 
+To run MongoDB, the API, and the Angular client together, use Docker Compose from this repository.
+The client repository must be checked out beside it as `../k-drama-watchlist-client`:
+
+```bash
+docker compose up --build --watch
+```
+
+This requires Docker Compose 2.22 or newer. It builds the `development` target in this repository,
+waits for MongoDB to become healthy, serves the API at `http://localhost:8080`, and synchronizes
+changes under `src` into the running watch process. Stop the stack with `docker compose down`;
+local MongoDB data remains in the `drama-watch_mongodb_data` volume.
+
+To run only the API directly on the host, follow the steps below.
+
 Install dependencies:
 
 ```bash
@@ -103,6 +117,9 @@ Unexpected errors are logged server-side and returned without stack traces or in
 Feature modules should register schemas with `MongooseModule.forFeature()`. Better Auth will reuse the native database and client exposed by this same Mongoose connection when authentication is implemented.
 
 ## Container
+
+The Dockerfile includes a dependency-complete development target for the workspace Compose setup
+and a minimal non-root runtime target for deployment.
 
 Build the production image:
 

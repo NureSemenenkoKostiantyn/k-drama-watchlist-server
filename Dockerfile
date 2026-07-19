@@ -5,6 +5,17 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+FROM dependencies AS development
+
+ENV NODE_ENV=development
+
+COPY nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY src ./src
+
+EXPOSE 8080
+
+CMD ["npm", "run", "dev"]
+
 FROM dependencies AS build
 
 COPY nest-cli.json tsconfig.json tsconfig.build.json ./
