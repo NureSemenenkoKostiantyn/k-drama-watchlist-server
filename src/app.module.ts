@@ -4,6 +4,7 @@ import { APP_FILTER } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
 
 import { ApiExceptionFilter } from "./common/filters/api-exception.filter";
+import { AuthenticationModule } from "./auth/authentication.module";
 import {
   type Environment,
   validateEnvironment,
@@ -38,6 +39,7 @@ import { HealthModule } from "./modules/health/health.module";
       }),
     }),
     DatabaseModule,
+    AuthenticationModule,
     HealthModule,
   ],
   providers: [

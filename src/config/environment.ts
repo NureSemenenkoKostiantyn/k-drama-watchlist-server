@@ -4,6 +4,7 @@ import {
   IsIn,
   IsInt,
   IsString,
+  IsUrl,
   Matches,
   Max,
   Min,
@@ -48,6 +49,24 @@ export class EnvironmentVariables {
   @MinLength(1)
   MONGODB_DB_NAME = "drama_watch";
 
+  @IsString()
+  @MinLength(32)
+  BETTER_AUTH_SECRET!: string;
+
+  @IsUrl({
+    protocols: ["http", "https"],
+    require_protocol: true,
+    require_tld: false,
+  })
+  BETTER_AUTH_URL = "http://localhost:8080";
+
+  @IsUrl({
+    protocols: ["http", "https"],
+    require_protocol: true,
+    require_tld: false,
+  })
+  FRONTEND_URL = "http://localhost:4200";
+
   @IsIn(logLevels)
   LOG_LEVEL: (typeof logLevels)[number] = "info";
 }
@@ -59,6 +78,9 @@ const environmentKeys = [
   "PORT",
   "MONGODB_URI",
   "MONGODB_DB_NAME",
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
+  "FRONTEND_URL",
   "LOG_LEVEL",
 ] as const;
 

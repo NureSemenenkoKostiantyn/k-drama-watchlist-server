@@ -5,7 +5,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectConnection } from "@nestjs/mongoose";
-import { ConnectionStates, type Connection } from "mongoose";
+import mongoose, { type Connection } from "mongoose";
 
 import { type Environment } from "../config/environment";
 
@@ -24,11 +24,11 @@ export class MongooseDatabaseService implements OnApplicationShutdown {
   }
 
   async getConnection(): Promise<Connection> {
-    if (this.connection.readyState === ConnectionStates.connected) {
+    if (this.connection.readyState === mongoose.ConnectionStates.connected) {
       return this.connection;
     }
 
-    if (this.connection.readyState === ConnectionStates.disconnected) {
+    if (this.connection.readyState === mongoose.ConnectionStates.disconnected) {
       this.connectionPromise = undefined;
     }
 
@@ -36,8 +36,25 @@ export class MongooseDatabaseService implements OnApplicationShutdown {
     return this.connectionPromise;
   }
 
+  async getNativeConnection(): Promise<{
+    client: ReturnType<Connection["getClient"]>;
+    database: NonNullable<Connection["db"]>;
+  }> {
+    const connection = await this.getConnection();
+    const database = connection.db;
+
+    if (!database) {
+      throw new Error("Mongoose connected without exposing a native database");
+    }
+
+    return {
+      client: connection.getClient(),
+      database,
+    };
+  }
+
   async onApplicationShutdown(): Promise<void> {
-    if (this.connection.readyState === ConnectionStates.disconnected) {
+    if (this.connection.readyState === mongoose.ConnectionStates.disconnected) {
       return;
     }
 
@@ -59,7 +76,9 @@ export class MongooseDatabaseService implements OnApplicationShutdown {
     } catch (error: unknown) {
       this.connectionPromise = undefined;
 
-      if (this.connection.readyState !== ConnectionStates.disconnected) {
+      if (
+        this.connection.readyState !== mongoose.ConnectionStates.disconnected
+      ) {
         await this.connection.close().catch(() => undefined);
       }
 

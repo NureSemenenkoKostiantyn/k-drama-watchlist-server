@@ -24,6 +24,9 @@ services:
       PORT: "8080"
       MONGODB_URI: mongodb://mongodb:27017/drama_watch
       MONGODB_DB_NAME: drama_watch
+      BETTER_AUTH_SECRET: local-development-only-secret-change-me
+      BETTER_AUTH_URL: http://localhost:8080
+      FRONTEND_URL: http://localhost:4200
       LOG_LEVEL: debug
       CHOKIDAR_USEPOLLING: "true"
     ports:

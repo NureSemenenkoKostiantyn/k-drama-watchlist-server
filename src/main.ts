@@ -8,7 +8,10 @@ import { configureApplication } from "./app.setup";
 import { type Environment } from "./config/environment";
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bodyParser: false,
+    bufferLogs: true,
+  });
 
   app.useLogger(app.get(PinoLogger));
   app.flushLogs();

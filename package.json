@@ -5,7 +5,7 @@
   "private": true,
   "license": "MIT",
   "engines": {
-    "node": ">=22.14.0",
+    "node": ">=22.22.1",
     "npm": ">=10.0.0"
   },
   "packageManager": "npm@11.17.0",
@@ -15,18 +15,22 @@
     "start": "node dist/main.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:e2e": "node --experimental-vm-modules node_modules/jest/bin/jest.js --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@better-auth/mongo-adapter": "^1.6.23",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.28",
     "@nestjs/mongoose": "^11.0.4",
     "@nestjs/platform-express": "^11.1.28",
+    "@thallesp/nestjs-better-auth": "^2.7.0",
+    "better-auth": "^1.6.23",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "mongodb": "~7.2.0",
     "mongoose": "^9.7.4",
     "nestjs-pino": "^4.6.1",
     "pino": "^10.3.1",

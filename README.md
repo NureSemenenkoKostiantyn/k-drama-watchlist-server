@@ -2,25 +2,30 @@
 
 NestJS backend for Drama Watch, a social watchlist focused on Korean dramas while supporting other television series and films.
 
-This initial foundation provides:
+The current backend foundation provides:
 
 - A strict TypeScript NestJS application.
 - `GET /api/health`.
 - NestJS `ValidationPipe` request validation with `class-validator` and `class-transformer`, plus the same validation approach for environment configuration.
 - Structured Pino request and application logging with sensitive headers redacted.
 - A process-wide, lazily opened Mongoose connection.
+- Better Auth email/password accounts and persistent cookie sessions.
+- Username onboarding through Better Auth's username plugin.
+- A global NestJS authentication guard, with anonymous routes explicitly marked.
+- Better Auth's MongoDB adapter reusing Mongoose's native client and database.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Better Auth, TMDB, and domain feature modules are intentionally deferred to later vertical slices.
+TMDB and domain feature modules are intentionally deferred to later vertical slices. Email delivery
+for verification and password resets remains pending until an email provider is selected.
 
 ## Prerequisites
 
-- Node.js 22.14 or newer.
+- Node.js 22.22.1 or newer.
 - npm 10 or newer.
 - Docker for container builds and container smoke tests.
-- A MongoDB connection string when exercising database-backed features. The health endpoint does not connect to MongoDB.
+- A MongoDB connection string. Authentication initializes the shared database connection when the application starts.
 
 ## Local setup
 
@@ -78,9 +83,12 @@ Expected response:
 | `PORT` | No | `8080` | HTTP listen port. |
 | `MONGODB_URI` | Yes | — | MongoDB or MongoDB Atlas connection string. |
 | `MONGODB_DB_NAME` | No | `drama_watch` | Application database name. |
+| `BETTER_AUTH_SECRET` | Yes | â€” | At least 32 characters; signs and encrypts authentication data. |
+| `BETTER_AUTH_URL` | No | `http://localhost:8080` | Public backend origin used by Better Auth. |
+| `FRONTEND_URL` | No | `http://localhost:4200` | Trusted frontend origin for authentication requests. |
 | `LOG_LEVEL` | No | `info` | Pino log level. |
 
-Do not commit `.env` files or credentials. Add Better Auth and TMDB variables only when those integrations are implemented.
+Do not commit `.env` files or credentials. Add the TMDB token only when that integration is implemented.
 
 ## Commands
 
@@ -93,7 +101,21 @@ Do not commit `.env` files or credentials. Add Better Auth and TMDB variables on
 | `npm run typecheck` | Type-check source and tests without emitting files. |
 | `npm test` | Run Jest unit tests. |
 | `npm run test:watch` | Run unit tests in watch mode. |
-| `npm run test:e2e` | Run Supertest against a NestJS application. |
+| `npm run test:e2e` | Run Supertest against a NestJS application and the `drama_watch_test` database. |
+
+Start the Compose MongoDB service before running `npm run test:e2e` from the host. The suite refuses
+to clear any database whose name is not exactly `drama_watch_test`.
+
+## Authentication
+
+Better Auth owns routes below `/api/auth/*`. Email/password registration, login, logout, session
+persistence, and unique username onboarding are implemented. The integration disables Nest's
+default body parser and restores JSON and URL-encoded parsing for ordinary controllers, as required
+by `@thallesp/nestjs-better-auth`.
+
+Ordinary API routes are protected by the integration's global guard. Health checks and other
+intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the
+current user from the authenticated session rather than accepting a user ID as authorization proof.
 
 ## API errors
 
@@ -114,7 +136,10 @@ Unexpected errors are logged server-side and returned without stack traces or in
 
 `MongooseDatabaseService` is a singleton NestJS provider backed by the connection token used by `@nestjs/mongoose`. It opens one Mongoose connection per application process only when a database consumer first requests it, shares an in-flight connection attempt, and closes the connection during application shutdown.
 
-Feature modules should register schemas with `MongooseModule.forFeature()`. Better Auth will reuse the native database and client exposed by this same Mongoose connection when authentication is implemented.
+Feature modules should register schemas with `MongooseModule.forFeature()`. Better Auth receives the
+native `Db` and `MongoClient` exposed by this same connection; it does not create a second connection.
+Adapter transactions are disabled for the standalone local/test MongoDB server and enabled in
+production for MongoDB Atlas.
 
 ## Container
 

@@ -5,7 +5,7 @@ import {
   MongooseModule,
 } from "@nestjs/mongoose";
 import { Test } from "@nestjs/testing";
-import { type Connection, type Model, Schema } from "mongoose";
+import mongoose, { type Connection, type Model } from "mongoose";
 
 import { DatabaseModule } from "./database.module";
 
@@ -15,7 +15,7 @@ interface ExampleDocument {
 
 describe("DatabaseModule", () => {
   it("supports feature models on the shared Mongoose connection", async () => {
-    const exampleSchema = new Schema<ExampleDocument>({
+    const exampleSchema = new mongoose.Schema<ExampleDocument>({
       title: { type: String, required: true },
     });
     const moduleRef = await Test.createTestingModule({

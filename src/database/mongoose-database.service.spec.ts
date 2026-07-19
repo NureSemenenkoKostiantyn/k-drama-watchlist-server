@@ -1,7 +1,7 @@
 import { ConfigService } from "@nestjs/config";
 import { getConnectionToken } from "@nestjs/mongoose";
 import { Test } from "@nestjs/testing";
-import { ConnectionStates, createConnection } from "mongoose";
+import mongoose from "mongoose";
 
 import {
   type Environment,
@@ -16,9 +16,12 @@ describe("MongooseDatabaseService", () => {
       PORT: 8080,
       MONGODB_URI: "mongodb://127.0.0.1:27017",
       MONGODB_DB_NAME: "drama_watch_test",
+      BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",
+      BETTER_AUTH_URL: "http://localhost:8080",
+      FRONTEND_URL: "http://localhost:4200",
       LOG_LEVEL: "silent",
     };
-    const connection = createConnection();
+    const connection = mongoose.createConnection();
     const moduleRef = await Test.createTestingModule({
       providers: [
         MongooseDatabaseService,
@@ -38,7 +41,9 @@ describe("MongooseDatabaseService", () => {
 
     expect(firstService).toBe(secondService);
     expect(firstService.getConnectionInstance()).toBe(connection);
-    expect(connection.readyState).toBe(ConnectionStates.disconnected);
+    expect(connection.readyState).toBe(
+      mongoose.ConnectionStates.disconnected,
+    );
 
     await moduleRef.close();
   });
