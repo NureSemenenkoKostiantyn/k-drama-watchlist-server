@@ -23,6 +23,9 @@ describe("createDramaWatchAuth", () => {
     expect(auth.options.basePath).toBe("/api/auth");
     expect(auth.options.trustedOrigins).toEqual(["http://localhost:4200"]);
     expect(auth.options.emailAndPassword?.enabled).toBe(true);
+    expect(auth.options.advanced?.cookies?.session_token?.name).toBe(
+      "__session",
+    );
     expect(auth.options.plugins?.map((plugin) => plugin.id)).toContain(
       "username",
     );

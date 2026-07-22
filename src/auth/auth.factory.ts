@@ -36,6 +36,11 @@ export function createDramaWatchAuth(
     trustedOrigins: [environment.FRONTEND_URL],
     advanced: {
       cookiePrefix: "drama-watch",
+      cookies: {
+        session_token: {
+          name: "__session",
+        },
+      },
       useSecureCookies: environment.NODE_ENV === NodeEnvironment.Production,
     },
   });
