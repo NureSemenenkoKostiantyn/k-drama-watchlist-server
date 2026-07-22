@@ -115,6 +115,7 @@ describe("application (e2e)", () => {
       .expect(200);
     const cookie = readCookie(signUpResponse);
 
+    expect(cookie).toMatch(/^__session=/);
     expect(signUpResponse.body).toMatchObject({
       user: {
         email,

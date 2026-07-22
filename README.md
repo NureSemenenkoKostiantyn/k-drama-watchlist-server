@@ -113,6 +113,9 @@ persistence, and unique username onboarding are implemented. The integration dis
 default body parser and restores JSON and URL-encoded parsing for ordinary controllers, as required
 by `@thallesp/nestjs-better-auth`.
 
+The session token cookie is named `__session` because Firebase Hosting forwards only that cookie
+through rewrites to Cloud Run. Keep this name when changing authentication or hosting settings.
+
 Ordinary API routes are protected by the integration's global guard. Health checks and other
 intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the
 current user from the authenticated session rather than accepting a user ID as authorization proof.
