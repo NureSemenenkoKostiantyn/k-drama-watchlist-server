@@ -1,3 +1,5 @@
+import { getCookies } from "better-auth/cookies";
+
 import { NodeEnvironment, type Environment } from "../config/environment";
 import { createDramaWatchAuth } from "./auth.factory";
 
@@ -29,5 +31,28 @@ describe("createDramaWatchAuth", () => {
     expect(auth.options.plugins?.map((plugin) => plugin.id)).toContain(
       "username",
     );
+  });
+
+  it("keeps the Firebase session cookie name exact and secure in production", () => {
+    const nativeConnection = {
+      client: {},
+      database: {},
+    } as unknown as Parameters<typeof createDramaWatchAuth>[0];
+    const environment: Environment = {
+      NODE_ENV: NodeEnvironment.Production,
+      PORT: 8080,
+      MONGODB_URI: "mongodb://127.0.0.1:27017",
+      MONGODB_DB_NAME: "drama_watch",
+      BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",
+      BETTER_AUTH_URL: "https://dahyun.best",
+      FRONTEND_URL: "https://dahyun.best",
+      LOG_LEVEL: "silent",
+    };
+
+    const auth = createDramaWatchAuth(nativeConnection, environment);
+    const { sessionToken } = getCookies(auth.options);
+
+    expect(sessionToken.name).toBe("__session");
+    expect(sessionToken.attributes.secure).toBe(true);
   });
 });

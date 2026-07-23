@@ -41,7 +41,11 @@ export function createDramaWatchAuth(
           name: "__session",
         },
       },
-      useSecureCookies: environment.NODE_ENV === NodeEnvironment.Production,
+      defaultCookieAttributes: {
+        secure: environment.NODE_ENV === NodeEnvironment.Production,
+      },
+      // A secure-cookie name prefix would make Firebase Hosting strip the cookie.
+      useSecureCookies: false,
     },
   });
 }
