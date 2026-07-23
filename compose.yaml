@@ -27,6 +27,7 @@ services:
       BETTER_AUTH_SECRET: local-development-only-secret-change-me
       BETTER_AUTH_URL: http://localhost:8080
       FRONTEND_URL: http://localhost:4200
+      TMDB_ACCESS_TOKEN: ${TMDB_ACCESS_TOKEN:-local-development-token}
       LOG_LEVEL: debug
       CHOKIDAR_USEPOLLING: "true"
     ports:

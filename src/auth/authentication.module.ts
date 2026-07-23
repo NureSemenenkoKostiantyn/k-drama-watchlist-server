@@ -10,6 +10,7 @@ import { createDramaWatchAuth } from "./auth.factory";
 @Module({
   imports: [
     AuthModule.forRootAsync({
+      disableGlobalAuthGuard: true,
       imports: [ConfigModule, DatabaseModule],
       inject: [MongooseDatabaseService, ConfigService],
       useFactory: async (
@@ -32,15 +33,11 @@ export class AuthenticationModule {}
 
 function readEnvironment(
   configService: ConfigService<Environment, true>,
-): Environment {
+): Parameters<typeof createDramaWatchAuth>[1] {
   return {
     NODE_ENV: configService.getOrThrow("NODE_ENV"),
-    PORT: configService.getOrThrow("PORT"),
-    MONGODB_URI: configService.getOrThrow("MONGODB_URI"),
-    MONGODB_DB_NAME: configService.getOrThrow("MONGODB_DB_NAME"),
     BETTER_AUTH_SECRET: configService.getOrThrow("BETTER_AUTH_SECRET"),
     BETTER_AUTH_URL: configService.getOrThrow("BETTER_AUTH_URL"),
     FRONTEND_URL: configService.getOrThrow("FRONTEND_URL"),
-    LOG_LEVEL: configService.getOrThrow("LOG_LEVEL"),
   };
 }

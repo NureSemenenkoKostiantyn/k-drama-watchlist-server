@@ -9,12 +9,15 @@ import {
 } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
+import { jest } from "@jest/globals";
 import { IsString, MaxLength } from "class-validator";
 import request, { type Response } from "supertest";
 
 import { AppModule } from "../src/app.module";
 import { configureApplication } from "../src/app.setup";
+import { tmdbSearchRateLimit } from "../src/common/throttling/throttling.constants";
 import { MongooseDatabaseService } from "../src/database/mongoose-database.service";
+import { TmdbClient } from "../src/integrations/tmdb/tmdb.client";
 
 class JsonEchoRequest {
   @IsString()
@@ -40,12 +43,58 @@ describe("application (e2e)", () => {
   let app: INestApplication;
   let server: Server;
   let databaseService: MongooseDatabaseService;
+  let authenticatedCookie: string;
+  let rateLimitedCookie: string;
+  let otherUserCookie: string;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [TestController],
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(TmdbClient)
+      .useValue({
+        search: jest.fn<TmdbClient["search"]>().mockResolvedValue({
+          page: 1,
+          total_pages: 1,
+          total_results: 2,
+          results: [
+            {
+              id: 1,
+              name: "Goblin",
+              original_name: "도깨비",
+              origin_country: ["KR"],
+              genre_ids: [18],
+              poster_path: "/goblin.jpg",
+            },
+            {
+              id: 2,
+              name: "Another show",
+              original_name: "Another show",
+              origin_country: ["US"],
+              genre_ids: [18],
+            },
+          ],
+        }),
+        getDetails: jest.fn<TmdbClient["getDetails"]>().mockResolvedValue({
+          id: 1,
+          name: "Goblin",
+          original_name: "도깨비",
+          origin_country: ["KR"],
+          genres: [{ id: 18 }],
+          number_of_episodes: 16,
+          number_of_seasons: 1,
+          seasons: [
+            {
+              id: 10,
+              season_number: 1,
+              name: "Season 1",
+              episode_count: 16,
+            },
+          ],
+        }),
+      })
+      .compile();
 
     app = moduleRef.createNestApplication({ bodyParser: false });
     configureApplication(app);
@@ -56,6 +105,22 @@ describe("application (e2e)", () => {
     const { database } = await databaseService.getNativeConnection();
     assertTestDatabase(database.databaseName);
     await database.dropDatabase();
+
+    authenticatedCookie = await registerTestUser(
+      server,
+      "search-test@example.com",
+      "Search Test",
+    );
+    rateLimitedCookie = await registerTestUser(
+      server,
+      "rate-limit-test@example.com",
+      "Rate Limit Test",
+    );
+    otherUserCookie = await registerTestUser(
+      server,
+      "other-search-test@example.com",
+      "Other Search Test",
+    );
   });
 
   afterAll(async () => {
@@ -99,6 +164,94 @@ describe("application (e2e)", () => {
         message: "Authentication is required.",
       },
     });
+  });
+
+  it("searches TMDB through the protected normalized API", async () => {
+    const response = await request(server)
+      .get("/api/search")
+      .query({
+        q: "Goblin",
+        type: "tv",
+        country: "kr",
+      })
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      page: 1,
+      results: [
+        {
+          id: "tv:1",
+          title: "Goblin",
+          originalTitle: "도깨비",
+          originCountry: ["KR"],
+          posterPath: "/goblin.jpg",
+        },
+      ],
+    });
+  });
+
+  it("returns normalized TMDB media details", async () => {
+    const response = await request(server)
+      .get("/api/media/tv/1")
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: "tv:1",
+      title: "Goblin",
+      totalEpisodes: 16,
+      totalSeasons: 1,
+      seasons: [
+        {
+          tmdbSeasonId: 10,
+          seasonNumber: 1,
+          episodeCount: 16,
+        },
+      ],
+    });
+  });
+
+  it("validates search queries and media identities", async () => {
+    await request(server)
+      .get("/api/search")
+      .set("Cookie", authenticatedCookie)
+      .expect(400);
+
+    await request(server)
+      .get("/api/media/person/1")
+      .set("Cookie", authenticatedCookie)
+      .expect(400);
+  });
+
+  it("rate-limits TMDB search per authenticated user", async () => {
+    for (let requestNumber = 0;
+      requestNumber < tmdbSearchRateLimit.limit;
+      requestNumber += 1) {
+      await request(server)
+        .get("/api/search")
+        .query({ q: "Goblin", type: "tv" })
+        .set("Cookie", rateLimitedCookie)
+        .expect(200);
+    }
+
+    await request(server)
+      .get("/api/search")
+      .query({ q: "Goblin", type: "tv" })
+      .set("Cookie", rateLimitedCookie)
+      .expect(429)
+      .expect({
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many requests.",
+        },
+      });
+
+    await request(server)
+      .get("/api/search")
+      .query({ q: "Goblin", type: "tv" })
+      .set("Cookie", otherUserCookie)
+      .expect(200);
   });
 
   it("registers, persists a session, completes onboarding, and logs out", async () => {
@@ -191,4 +344,22 @@ function readCookie(response: Response): string {
   }
 
   return cookies.map((cookie) => cookie.split(";", 1)[0]).join("; ");
+}
+
+async function registerTestUser(
+  server: Server,
+  email: string,
+  name: string,
+): Promise<string> {
+  const response = await request(server)
+    .post("/api/auth/sign-up/email")
+    .set("Origin", "http://localhost:4200")
+    .send({
+      email,
+      name,
+      password: "correct-horse-battery-staple",
+    })
+    .expect(200);
+
+  return readCookie(response);
 }

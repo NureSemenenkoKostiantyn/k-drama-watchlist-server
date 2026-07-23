@@ -19,6 +19,9 @@ describe("MongooseDatabaseService", () => {
       BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",
       BETTER_AUTH_URL: "http://localhost:8080",
       FRONTEND_URL: "http://localhost:4200",
+      TMDB_ACCESS_TOKEN: "test-tmdb-token",
+      RATE_LIMIT_TTL_MS: 60_000,
+      RATE_LIMIT_MAX: 120,
       LOG_LEVEL: "silent",
     };
     const connection = mongoose.createConnection();

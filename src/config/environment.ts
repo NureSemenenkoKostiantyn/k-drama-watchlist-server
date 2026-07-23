@@ -67,6 +67,20 @@ export class EnvironmentVariables {
   })
   FRONTEND_URL = "http://localhost:4200";
 
+  @IsString()
+  @MinLength(1)
+  TMDB_ACCESS_TOKEN!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  RATE_LIMIT_TTL_MS = 60_000;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  RATE_LIMIT_MAX = 120;
+
   @IsIn(logLevels)
   LOG_LEVEL: (typeof logLevels)[number] = "info";
 }
@@ -81,6 +95,9 @@ const environmentKeys = [
   "BETTER_AUTH_SECRET",
   "BETTER_AUTH_URL",
   "FRONTEND_URL",
+  "TMDB_ACCESS_TOKEN",
+  "RATE_LIMIT_TTL_MS",
+  "RATE_LIMIT_MAX",
   "LOG_LEVEL",
 ] as const;
 
