@@ -13,12 +13,15 @@ The current backend foundation provides:
 - Username onboarding through Better Auth's username plugin.
 - A global NestJS authentication guard, with anonymous routes explicitly marked.
 - Better Auth's MongoDB adapter reusing Mongoose's native client and database.
+- Protected TMDB text search and normalized TV/movie detail endpoints.
+- Global NestJS request throttling with a tighter per-user TMDB search limit.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-TMDB and domain feature modules are intentionally deferred to later vertical slices. Email delivery
-for verification and password resets remains pending until an email provider is selected.
+Personal library and other domain feature modules are intentionally deferred to later vertical
+slices. Email delivery for verification and password resets remains pending until an email provider
+is selected.
 
 ## Prerequisites
 
@@ -86,9 +89,13 @@ Expected response:
 | `BETTER_AUTH_SECRET` | Yes | â€” | At least 32 characters; signs and encrypts authentication data. |
 | `BETTER_AUTH_URL` | No | `http://localhost:8080` | Public backend origin used by Better Auth. |
 | `FRONTEND_URL` | No | `http://localhost:4200` | Trusted frontend origin for authentication requests. |
+| `TMDB_ACCESS_TOKEN` | Yes | — | TMDB API Read Access Token used only by the backend. |
+| `RATE_LIMIT_TTL_MS` | No | `60000` | Default request-rate window in milliseconds. |
+| `RATE_LIMIT_MAX` | No | `120` | Default maximum requests per route and tracker in one window. |
 | `LOG_LEVEL` | No | `info` | Pino log level. |
 
-Do not commit `.env` files or credentials. Add the TMDB token only when that integration is implemented.
+Do not commit `.env` files or credentials. Set `TMDB_ACCESS_TOKEN` in the local `.env` file and
+provide it to Cloud Run through Secret Manager or equivalent deployment configuration.
 
 ## Commands
 
@@ -145,6 +152,22 @@ Feature modules should register schemas with `MongooseModule.forFeature()`. Bett
 native `Db` and `MongoClient` exposed by this same connection; it does not create a second connection.
 Adapter transactions are disabled for the standalone local/test MongoDB server and enabled in
 production for MongoDB Atlas.
+
+## TMDB integration
+
+Authenticated users can search TMDB through `GET /api/search` and retrieve normalized details through
+`GET /api/media/:mediaType/:tmdbId`. The browser never receives the TMDB access token or calls TMDB
+directly.
+
+Search supports a required `q` value, `type=all|tv|movie`, and one-based `page`. A two-letter
+`country` filter is available for TV searches; the K-drama UI uses `type=tv&country=KR`. Search
+responses omit person results, expose stable `tv:<tmdbId>` or `movie:<tmdbId>` identities, and retain
+both TMDB image paths and generated image URLs.
+
+TMDB search is limited to 20 requests per minute per authenticated Better Auth user. The global
+throttler also uses authenticated user IDs where available. Its unauthenticated fallback uses the
+direct socket address and deliberately ignores forwarded headers supplied through Firebase Hosting
+and Cloud Run.
 
 ## Container
 

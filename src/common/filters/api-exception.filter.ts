@@ -29,6 +29,7 @@ const statusCodes: Partial<Record<number, string>> = {
   [HttpStatus.UNAUTHORIZED]: "AUTH_REQUIRED",
   [HttpStatus.FORBIDDEN]: "FORBIDDEN",
   [HttpStatus.NOT_FOUND]: "NOT_FOUND",
+  [HttpStatus.TOO_MANY_REQUESTS]: "RATE_LIMITED",
 };
 
 const statusMessages: Partial<Record<number, string>> = {
@@ -36,6 +37,7 @@ const statusMessages: Partial<Record<number, string>> = {
   [HttpStatus.UNAUTHORIZED]: "Authentication is required.",
   [HttpStatus.FORBIDDEN]: "You do not have permission to perform this action.",
   [HttpStatus.NOT_FOUND]: "Resource not found.",
+  [HttpStatus.TOO_MANY_REQUESTS]: "Too many requests.",
 };
 
 const internalServerErrorStatus: number = HttpStatus.INTERNAL_SERVER_ERROR;

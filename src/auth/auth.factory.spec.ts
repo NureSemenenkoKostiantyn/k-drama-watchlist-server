@@ -1,6 +1,6 @@
 import { getCookies } from "better-auth/cookies";
 
-import { NodeEnvironment, type Environment } from "../config/environment";
+import { NodeEnvironment } from "../config/environment";
 import { createDramaWatchAuth } from "./auth.factory";
 
 describe("createDramaWatchAuth", () => {
@@ -9,15 +9,11 @@ describe("createDramaWatchAuth", () => {
       client: {},
       database: {},
     } as unknown as Parameters<typeof createDramaWatchAuth>[0];
-    const environment: Environment = {
+    const environment: Parameters<typeof createDramaWatchAuth>[1] = {
       NODE_ENV: NodeEnvironment.Test,
-      PORT: 8080,
-      MONGODB_URI: "mongodb://127.0.0.1:27017",
-      MONGODB_DB_NAME: "drama_watch_test",
       BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",
       BETTER_AUTH_URL: "http://localhost:8080",
       FRONTEND_URL: "http://localhost:4200",
-      LOG_LEVEL: "silent",
     };
 
     const auth = createDramaWatchAuth(nativeConnection, environment);
@@ -38,15 +34,11 @@ describe("createDramaWatchAuth", () => {
       client: {},
       database: {},
     } as unknown as Parameters<typeof createDramaWatchAuth>[0];
-    const environment: Environment = {
+    const environment: Parameters<typeof createDramaWatchAuth>[1] = {
       NODE_ENV: NodeEnvironment.Production,
-      PORT: 8080,
-      MONGODB_URI: "mongodb://127.0.0.1:27017",
-      MONGODB_DB_NAME: "drama_watch",
       BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",
       BETTER_AUTH_URL: "https://dahyun.best",
       FRONTEND_URL: "https://dahyun.best",
-      LOG_LEVEL: "silent",
     };
 
     const auth = createDramaWatchAuth(nativeConnection, environment);

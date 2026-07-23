@@ -9,9 +9,17 @@ type NativeConnection = Awaited<
   ReturnType<MongooseDatabaseService["getNativeConnection"]>
 >;
 
+type AuthEnvironment = Pick<
+  Environment,
+  | "BETTER_AUTH_SECRET"
+  | "BETTER_AUTH_URL"
+  | "FRONTEND_URL"
+  | "NODE_ENV"
+>;
+
 export function createDramaWatchAuth(
   nativeConnection: NativeConnection,
-  environment: Environment,
+  environment: AuthEnvironment,
 ) {
   return betterAuth({
     appName: "Drama Watch",
