@@ -351,6 +351,12 @@ function toLibraryEntryResponse(
     categoryIds: entry.categoryIds.map((categoryId) =>
       categoryId.toHexString(),
     ),
+    ...(entry.priorityLaneId === undefined
+      ? {}
+      : { priorityLaneId: entry.priorityLaneId.toHexString() }),
+    ...(entry.priorityPosition === undefined
+      ? {}
+      : { priorityPosition: entry.priorityPosition }),
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
     ...(entry.progress === undefined

@@ -399,15 +399,152 @@ describe("application (e2e)", () => {
       }),
     ]);
 
-    await database.collection("userMedia").updateOne(
-      { _id: new ObjectId(firstEntry.id) },
-      {
-        $set: {
-          priorityLaneId: new ObjectId(),
-          priorityPosition: 1,
-        },
-      },
+    const priorityResponse = await request(server)
+      .get("/api/priority-lanes")
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const priorityLanes = readPriorityLanes(
+      priorityResponse.body as unknown,
     );
+    expect(priorityResponse.body).toEqual([
+      expect.objectContaining({ name: "Must watch", position: 0 }),
+      expect.objectContaining({
+        name: "I really want to watch",
+        position: 1,
+      }),
+      expect.objectContaining({ name: "Maybe", position: 2 }),
+      expect.objectContaining({
+        name: "If there is nothing else",
+        position: 3,
+      }),
+    ]);
+
+    const reversedLaneIds = priorityLanes
+      .map((lane) => lane.id)
+      .reverse();
+    const expectedReorderedLanes = reversedLaneIds.map((id, position) => ({
+      id,
+      position,
+    }));
+    await request(server)
+      .post("/api/priority-lanes/reorder")
+      .set("Cookie", authenticatedCookie)
+      .send({ laneIds: reversedLaneIds })
+      .expect(201)
+      .expect((response) => {
+        expect(response.body).toMatchObject(expectedReorderedLanes);
+      });
+
+    const customLane = readPriorityLane(
+      (
+        await request(server)
+          .post("/api/priority-lanes")
+          .set("Cookie", authenticatedCookie)
+          .send({ name: "Watch tonight" })
+          .expect(201)
+      ).body as unknown,
+    );
+
+    await request(server)
+      .patch(`/api/priority-lanes/${customLane.id}`)
+      .set("Cookie", otherUserCookie)
+      .send({ name: "Not mine" })
+      .expect(404);
+
+    await request(server)
+      .patch(`/api/priority-lanes/${customLane.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ name: "Tonight shortlist" })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          id: customLane.id,
+          name: "Tonight shortlist",
+          isDefault: false,
+        });
+      });
+
+    await request(server)
+      .post("/api/priority-lanes/reorder-items")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        lanes: [
+          {
+            laneId: customLane.id,
+            itemIds: [firstEntry.id],
+          },
+        ],
+      })
+      .expect(204);
+
+    await request(server)
+      .get(`/api/library/${firstEntry.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          priorityLaneId: customLane.id,
+          priorityPosition: 0,
+        });
+      });
+
+    const destinationLane = priorityLanes[0];
+
+    if (!destinationLane) {
+      throw new Error("Authenticated user did not receive default lanes");
+    }
+
+    await request(server)
+      .post("/api/priority-lanes/reorder-items")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        lanes: [
+          { laneId: customLane.id, itemIds: [] },
+          {
+            laneId: destinationLane.id,
+            itemIds: [firstEntry.id],
+          },
+        ],
+      })
+      .expect(204);
+
+    await request(server)
+      .get(`/api/library/${firstEntry.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          priorityLaneId: destinationLane.id,
+          priorityPosition: 0,
+        });
+      });
+
+    const otherPriorityLanes = readPriorityLanes(
+      (
+        await request(server)
+          .get("/api/priority-lanes")
+          .set("Cookie", otherUserCookie)
+          .expect(200)
+      ).body as unknown,
+    );
+    const otherLane = otherPriorityLanes[0];
+
+    if (!otherLane) {
+      throw new Error("Other user did not receive default lanes");
+    }
+
+    await request(server)
+      .post("/api/priority-lanes/reorder-items")
+      .set("Cookie", otherUserCookie)
+      .send({
+        lanes: [
+          {
+            laneId: otherLane.id,
+            itemIds: [firstEntry.id],
+          },
+        ],
+      })
+      .expect(400);
 
     await request(server)
       .patch(`/api/library/${secondEntry.id}/status`)
@@ -431,6 +568,11 @@ describe("application (e2e)", () => {
 
     expect(storedUpdatedEntry).not.toHaveProperty("priorityLaneId");
     expect(storedUpdatedEntry).not.toHaveProperty("priorityPosition");
+
+    await request(server)
+      .delete(`/api/priority-lanes/${customLane.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
 
     await request(server)
       .patch(`/api/library/${firstEntry.id}/progress`)
@@ -772,6 +914,27 @@ function readCategory(value: unknown): {
     typeof value.id !== "string"
   ) {
     throw new Error("Category response did not contain an identifier");
+  }
+
+  return { id: value.id };
+}
+
+function readPriorityLanes(value: unknown): Array<{ id: string }> {
+  if (!Array.isArray(value)) {
+    throw new Error("Priority lane response was not an array");
+  }
+
+  return value.map(readPriorityLane);
+}
+
+function readPriorityLane(value: unknown): { id: string } {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("id" in value) ||
+    typeof value.id !== "string"
+  ) {
+    throw new Error("Priority lane response did not contain an identifier");
   }
 
   return { id: value.id };

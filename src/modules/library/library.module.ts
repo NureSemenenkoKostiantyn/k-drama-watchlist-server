@@ -6,6 +6,7 @@ import { LibraryController } from "./library.controller";
 import { LibraryRepository } from "./library.repository";
 import { LibraryService } from "./library.service";
 import { userMediaModelProvider } from "./user-media-model.provider";
+import { USER_MEDIA_MODEL } from "./user-media-model.provider";
 
 @Module({
   imports: [CategoriesModule, MediaModule],
@@ -15,5 +16,6 @@ import { userMediaModelProvider } from "./user-media-model.provider";
     LibraryRepository,
     LibraryService,
   ],
+  exports: [USER_MEDIA_MODEL],
 })
 export class LibraryModule {}

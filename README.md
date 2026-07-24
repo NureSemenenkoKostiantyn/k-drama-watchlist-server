@@ -20,13 +20,13 @@ The current backend foundation provides:
 - Owner-scoped episode progress, half-point ratings, private descriptions, and audio/subtitle
   preferences.
 - Owner-scoped custom category CRUD and multi-category assignment for personal library entries.
+- Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Priority lanes, wheels, and social feature modules are intentionally deferred to later vertical
-slices. Email delivery for verification and password resets remains pending until an email provider
-is selected.
+Wheels and social feature modules are intentionally deferred to later vertical slices. Email
+delivery for verification and password resets remains pending until an email provider is selected.
 
 ## Prerequisites
 
@@ -220,10 +220,32 @@ Names produce owner-scoped Unicode slugs and must contain at least one letter or
 names are unique per user after slug normalization. Deleting a category removes its ID from every
 personal library entry owned by that user.
 
+## Priority board
+
+Authenticated users can manage priority lanes through:
+
+```text
+GET    /api/priority-lanes
+POST   /api/priority-lanes
+PATCH  /api/priority-lanes/:laneId
+DELETE /api/priority-lanes/:laneId
+POST   /api/priority-lanes/reorder
+POST   /api/priority-lanes/reorder-items
+```
+
+The first read lazily provisions the four documented default lanes. Reorder operations accept the
+complete ordered lane or item ID array, reject duplicates and foreign resources, and allow only
+owner-scoped `to_watch` entries. Moving an entry out of `to_watch` or deleting its lane clears both
+priority fields. Item moves submit every affected lane in one request. MongoDB Atlas applies the
+validation and complete affected-lane replacement in one transaction; the standalone local/test
+database uses the same combined operation without transactions.
+
 ## Container
 
 The Dockerfile includes a dependency-complete development target for the workspace Compose setup
-and a minimal non-root runtime target for deployment.
+and a minimal non-root runtime target for deployment. The development target includes `procps`
+because Nest CLI uses `ps` to terminate the previous application process during watch-mode
+recompilation; without it, stale API processes can continue serving outdated routes.
 
 Build the production image:
 

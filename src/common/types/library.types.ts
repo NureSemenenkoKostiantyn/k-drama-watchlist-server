@@ -43,6 +43,8 @@ export interface LibraryEntryResponse {
   rating?: number;
   description?: string;
   categoryIds: string[];
+  priorityLaneId?: string;
+  priorityPosition?: number;
   playbackPreference?: PlaybackPreference;
   startedAt?: string;
   completedAt?: string;
