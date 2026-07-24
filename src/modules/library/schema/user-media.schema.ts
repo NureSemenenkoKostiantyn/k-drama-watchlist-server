@@ -1,6 +1,9 @@
 import { Schema, type Types } from "mongoose";
 
-import { WatchStatus } from "../../../common/types/library.types";
+import {
+  AudioType,
+  WatchStatus,
+} from "../../../common/types/library.types";
 import { MEDIA_MODEL_NAME } from "../../media/media-model.provider";
 
 export interface UserMediaProgressDocument {
@@ -14,7 +17,7 @@ export interface UserMediaProgressDocument {
 }
 
 export interface PlaybackAudioDocument {
-  type: "original" | "dubbed" | "mixed" | "unknown";
+  type: AudioType;
   languageCode?: string;
   customLabel?: string;
 }
@@ -63,7 +66,7 @@ const playbackAudioSchema = new Schema<PlaybackAudioDocument>(
   {
     type: {
       type: String,
-      enum: ["original", "dubbed", "mixed", "unknown"],
+      enum: Object.values(AudioType),
       required: true,
     },
     languageCode: String,

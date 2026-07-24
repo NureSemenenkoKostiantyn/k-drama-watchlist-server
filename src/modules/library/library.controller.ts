@@ -20,6 +20,10 @@ import { type LibraryEntryResponse } from "../../common/types/library.types";
 import { AddLibraryEntryDto } from "./dto/add-library-entry.dto";
 import { LibraryEntryParams } from "./dto/library-entry-params.dto";
 import { ListLibraryQuery } from "./dto/list-library-query.dto";
+import { UpdateLibraryEntryDto } from "./dto/update-library-entry.dto";
+import { UpdatePlaybackPreferenceDto } from "./dto/update-playback-preference.dto";
+import { UpdateProgressDto } from "./dto/update-progress.dto";
+import { UpdateRatingDto } from "./dto/update-rating.dto";
 import { UpdateLibraryStatusDto } from "./dto/update-library-status.dto";
 import { LibraryService } from "./library.service";
 
@@ -61,6 +65,58 @@ export class LibraryController {
       session.user.id,
       params.entryId,
       input.status,
+    );
+  }
+
+  @Patch(":entryId/progress")
+  updateProgress(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: LibraryEntryParams,
+    @Body() input: UpdateProgressDto,
+  ): Promise<LibraryEntryResponse> {
+    return this.libraryService.updateProgress(
+      session.user.id,
+      params.entryId,
+      input,
+    );
+  }
+
+  @Patch(":entryId/rating")
+  updateRating(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: LibraryEntryParams,
+    @Body() input: UpdateRatingDto,
+  ): Promise<LibraryEntryResponse> {
+    return this.libraryService.updateRating(
+      session.user.id,
+      params.entryId,
+      input.rating,
+    );
+  }
+
+  @Patch(":entryId/playback-preference")
+  updatePlaybackPreference(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: LibraryEntryParams,
+    @Body() input: UpdatePlaybackPreferenceDto,
+  ): Promise<LibraryEntryResponse> {
+    return this.libraryService.updatePlaybackPreference(
+      session.user.id,
+      params.entryId,
+      input,
+    );
+  }
+
+  @Patch(":entryId")
+  update(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: LibraryEntryParams,
+    @Body() input: UpdateLibraryEntryDto,
+  ): Promise<LibraryEntryResponse> {
+    return this.libraryService.updateDescription(
+      session.user.id,
+      params.entryId,
+      input.description,
     );
   }
 

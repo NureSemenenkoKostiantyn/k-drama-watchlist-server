@@ -21,6 +21,14 @@ describe("LibraryService", () => {
   const create = jest.fn<LibraryRepository["create"]>();
   const updateStatus =
     jest.fn<LibraryRepository["updateStatus"]>();
+  const updateProgress =
+    jest.fn<LibraryRepository["updateProgress"]>();
+  const updateRating =
+    jest.fn<LibraryRepository["updateRating"]>();
+  const updateDescription =
+    jest.fn<LibraryRepository["updateDescription"]>();
+  const updatePlaybackPreference =
+    jest.fn<LibraryRepository["updatePlaybackPreference"]>();
   const deleteEntry = jest.fn<LibraryRepository["delete"]>();
   const findMediaById = jest.fn<MediaRepository["findById"]>();
   const findByIds = jest.fn<MediaRepository["findByIds"]>();
@@ -36,6 +44,10 @@ describe("LibraryService", () => {
       findByMedia,
       create,
       updateStatus,
+      updateProgress,
+      updateRating,
+      updateDescription,
+      updatePlaybackPreference,
       delete: deleteEntry,
     } as unknown as LibraryRepository,
     {
@@ -153,5 +165,138 @@ describe("LibraryService", () => {
       message: "This title is already in your library.",
     });
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it("calculates season progress and moves an active title to watching", async () => {
+    const tvMedia: StoredMedia = {
+      ...media,
+      mediaType: MediaType.Tv,
+      tmdbId: 1,
+      title: "Goblin",
+      originalTitle: "도깨비",
+      runtimeMinutes: undefined,
+      totalEpisodes: 4,
+      totalSeasons: 2,
+      seasons: [
+        {
+          seasonNumber: 0,
+          name: "Specials",
+          episodeCount: 1,
+        },
+        {
+          seasonNumber: 1,
+          name: "Season 1",
+          episodeCount: 2,
+        },
+        {
+          seasonNumber: 2,
+          name: "Season 2",
+          episodeCount: 2,
+        },
+      ],
+    };
+    findById.mockResolvedValue(entry);
+    findMediaById.mockResolvedValue(tvMedia);
+    updateProgress.mockImplementation(
+      (_userId, _entryId, update) =>
+        Promise.resolve({
+          ...entry,
+          status: update.status,
+          progress: update.progress,
+          lastProgressAt: update.lastProgressAt,
+          ...(update.startedAt === undefined
+            ? {}
+            : { startedAt: update.startedAt }),
+        }),
+    );
+
+    await expect(
+      service.updateProgress(userId.toHexString(), entryId.toHexString(), {
+        currentSeason: 2,
+        currentEpisode: 1,
+      }),
+    ).resolves.toMatchObject({
+      status: WatchStatus.Watching,
+      progress: {
+        currentSeason: 2,
+        currentEpisode: 1,
+        completedEpisodes: 3,
+        totalEpisodesSnapshot: 4,
+        completedSeasonNumbers: [1],
+        includeSpecials: false,
+      },
+    });
+
+    const persistenceUpdate = updateProgress.mock.calls[0]?.[2];
+    expect(persistenceUpdate).toMatchObject({
+      status: WatchStatus.Watching,
+      progress: {
+        completedEpisodes: 3,
+        totalEpisodesSnapshot: 4,
+      },
+    });
+  });
+
+  it("marks a title watched when all included episodes are complete", async () => {
+    const tvMedia: StoredMedia = {
+      ...media,
+      mediaType: MediaType.Tv,
+      tmdbId: 1,
+      title: "Goblin",
+      originalTitle: "도깨비",
+      runtimeMinutes: undefined,
+      totalEpisodes: 2,
+      totalSeasons: 1,
+      seasons: [
+        {
+          seasonNumber: 1,
+          name: "Season 1",
+          episodeCount: 2,
+        },
+      ],
+    };
+    findById.mockResolvedValue(entry);
+    findMediaById.mockResolvedValue(tvMedia);
+    updateProgress.mockImplementation(
+      (_userId, _entryId, update) =>
+        Promise.resolve({
+          ...entry,
+          status: update.status,
+          progress: update.progress,
+          lastProgressAt: update.lastProgressAt,
+          ...(update.completedAt instanceof Date
+            ? { completedAt: update.completedAt }
+            : {}),
+        }),
+    );
+
+    await expect(
+      service.updateProgress(userId.toHexString(), entryId.toHexString(), {
+        currentSeason: 1,
+        currentEpisode: 2,
+      }),
+    ).resolves.toMatchObject({
+      status: WatchStatus.Watched,
+      progress: {
+        completedEpisodes: 2,
+        completedSeasonNumbers: [1],
+      },
+    });
+  });
+
+  it("rejects episode progress for movies", async () => {
+    findById.mockResolvedValue(entry);
+    findMediaById.mockResolvedValue(media);
+
+    await expect(
+      service.updateProgress(userId.toHexString(), entryId.toHexString(), {
+        currentSeason: 0,
+        currentEpisode: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+      message: "Episode progress is available only for TV titles.",
+    });
+    expect(updateProgress).not.toHaveBeenCalled();
   });
 });

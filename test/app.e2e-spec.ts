@@ -278,12 +278,12 @@ describe("application (e2e)", () => {
       .expect(200);
 
     expect(filteredLibrary.body).toEqual([
-        expect.objectContaining({
-          id: firstEntry.id,
-          mediaId: firstEntry.mediaId,
-          status: "to_watch",
-        }),
-      ]);
+      expect.objectContaining({
+        id: firstEntry.id,
+        mediaId: firstEntry.mediaId,
+        status: "to_watch",
+      }),
+    ]);
 
     await database.collection("userMedia").updateOne(
       { _id: new ObjectId(firstEntry.id) },
@@ -317,6 +317,129 @@ describe("application (e2e)", () => {
 
     expect(storedUpdatedEntry).not.toHaveProperty("priorityLaneId");
     expect(storedUpdatedEntry).not.toHaveProperty("priorityPosition");
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}/progress`)
+      .set("Cookie", authenticatedCookie)
+      .send({
+        currentSeason: 1,
+        currentEpisode: 1,
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          status: "watching",
+          progress: {
+            currentSeason: 1,
+            currentEpisode: 1,
+            completedEpisodes: 1,
+            totalEpisodesSnapshot: 16,
+            completedSeasonNumbers: [],
+            includeSpecials: false,
+          },
+        });
+      });
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}/rating`)
+      .set("Cookie", authenticatedCookie)
+      .send({ rating: 8.3 })
+      .expect(400);
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}/rating`)
+      .set("Cookie", authenticatedCookie)
+      .send({ rating: 8.5 })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ rating: 8.5 });
+      });
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ description: "A private personal note." })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          description: "A private personal note.",
+        });
+      });
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}/playback-preference`)
+      .set("Cookie", authenticatedCookie)
+      .send({
+        audio: {
+          type: "original",
+          languageCode: "ko",
+        },
+        subtitleLanguageCode: "en",
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          playbackPreference: {
+            audio: {
+              type: "original",
+              languageCode: "ko",
+            },
+            subtitleLanguageCode: "en",
+          },
+        });
+      });
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}/progress`)
+      .set("Cookie", authenticatedCookie)
+      .send({
+        currentSeason: 1,
+        currentEpisode: 16,
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          status: "watched",
+          rating: 8.5,
+          description: "A private personal note.",
+          progress: {
+            completedEpisodes: 16,
+            completedSeasonNumbers: [1],
+          },
+        });
+      });
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}/rating`)
+      .set("Cookie", authenticatedCookie)
+      .send({ rating: null })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).not.toHaveProperty("rating");
+      });
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ description: null })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).not.toHaveProperty("description");
+      });
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}/playback-preference`)
+      .set("Cookie", authenticatedCookie)
+      .send({
+        audio: null,
+        subtitleLanguageCode: null,
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).not.toHaveProperty(
+          "playbackPreference",
+        );
+      });
 
     await request(server)
       .delete(`/api/library/${firstEntry.id}`)

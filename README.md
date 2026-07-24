@@ -17,13 +17,15 @@ The current backend foundation provides:
 - Global NestJS request throttling with a tighter per-user TMDB search limit.
 - A personal library API backed by one shared media snapshot per TMDB title and separate
   owner-scoped user relationships.
+- Owner-scoped episode progress, half-point ratings, private descriptions, and audio/subtitle
+  preferences.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Progress tracking, categories, priority lanes, wheels, and social feature modules are intentionally
-deferred to later vertical slices. Email delivery for verification and password resets remains
-pending until an email provider is selected.
+Categories, priority lanes, wheels, and social feature modules are intentionally deferred to later
+vertical slices. Email delivery for verification and password resets remains pending until an email
+provider is selected.
 
 ## Prerequisites
 
@@ -179,7 +181,11 @@ Authenticated users can manage their personal relationship with a title through:
 GET    /api/library
 POST   /api/library
 GET    /api/library/:entryId
+PATCH  /api/library/:entryId
 PATCH  /api/library/:entryId/status
+PATCH  /api/library/:entryId/progress
+PATCH  /api/library/:entryId/rating
+PATCH  /api/library/:entryId/playback-preference
 DELETE /api/library/:entryId
 ```
 
@@ -191,7 +197,10 @@ snapshot.
 
 All library queries are scoped with the Better Auth session user ID. A client-supplied user ID is
 never accepted as authorization evidence. A unique `{ userId, mediaId }` index prevents duplicate
-personal entries.
+personal entries. TV progress is validated against the stored season snapshot, excludes specials
+by default, and automatically moves an entry between `to_watch`, `watching`, and `watched` as its
+completed episode count changes. Ratings accept half-point values from 1 through 10; descriptions
+remain private and are limited to 5,000 characters.
 
 ## Container
 
