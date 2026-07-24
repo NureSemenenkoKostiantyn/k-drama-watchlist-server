@@ -15,13 +15,15 @@ The current backend foundation provides:
 - Better Auth's MongoDB adapter reusing Mongoose's native client and database.
 - Protected TMDB text search and normalized TV/movie detail endpoints.
 - Global NestJS request throttling with a tighter per-user TMDB search limit.
+- A personal library API backed by one shared media snapshot per TMDB title and separate
+  owner-scoped user relationships.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Personal library and other domain feature modules are intentionally deferred to later vertical
-slices. Email delivery for verification and password resets remains pending until an email provider
-is selected.
+Progress tracking, categories, priority lanes, wheels, and social feature modules are intentionally
+deferred to later vertical slices. Email delivery for verification and password resets remains
+pending until an email provider is selected.
 
 ## Prerequisites
 
@@ -148,10 +150,10 @@ Unexpected errors are logged server-side and returned without stack traces or in
 
 `MongooseDatabaseService` is a singleton NestJS provider backed by the connection token used by `@nestjs/mongoose`. It opens one Mongoose connection per application process only when a database consumer first requests it, shares an in-flight connection attempt, and closes the connection during application shutdown.
 
-Feature modules should register schemas with `MongooseModule.forFeature()`. Better Auth receives the
-native `Db` and `MongoClient` exposed by this same connection; it does not create a second connection.
-Adapter transactions are disabled for the standalone local/test MongoDB server and enabled in
-production for MongoDB Atlas.
+Feature modules expose their Mongoose models through NestJS providers backed by the same connection
+token. Better Auth receives the native `Db` and `MongoClient` exposed by this connection; it does not
+create a second connection. Adapter transactions are disabled for the standalone local/test MongoDB
+server and enabled in production for MongoDB Atlas.
 
 ## TMDB integration
 
@@ -168,6 +170,28 @@ TMDB search is limited to 20 requests per minute per authenticated Better Auth u
 throttler also uses authenticated user IDs where available. Its unauthenticated fallback uses the
 direct socket address and deliberately ignores forwarded headers supplied through Firebase Hosting
 and Cloud Run.
+
+## Personal library
+
+Authenticated users can manage their personal relationship with a title through:
+
+```text
+GET    /api/library
+POST   /api/library
+GET    /api/library/:entryId
+PATCH  /api/library/:entryId/status
+DELETE /api/library/:entryId
+```
+
+The `media` collection has one unique document for each `{ mediaType, tmdbId }` pair. The first user
+to add a title causes the API to fetch and store its normalized TMDB details. Later users reuse that
+document's ObjectId through their own `userMedia` documents, so posters, titles, seasons, and other
+metadata are not duplicated per user. Removing a personal entry never deletes the shared media
+snapshot.
+
+All library queries are scoped with the Better Auth session user ID. A client-supplied user ID is
+never accepted as authorization evidence. A unique `{ userId, mediaId }` index prevents duplicate
+personal entries.
 
 ## Container
 

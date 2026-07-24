@@ -11,6 +11,7 @@ import { Test } from "@nestjs/testing";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 import { jest } from "@jest/globals";
 import { IsString, MaxLength } from "class-validator";
+import { ObjectId } from "mongodb";
 import request, { type Response } from "supertest";
 
 import { AppModule } from "../src/app.module";
@@ -212,6 +213,128 @@ describe("application (e2e)", () => {
     });
   });
 
+  it("shares one media snapshot while isolating each user's library entry", async () => {
+    const firstAdd = await request(server)
+      .post("/api/library")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        mediaType: "tv",
+        tmdbId: 1,
+        status: "to_watch",
+      })
+      .expect(201);
+
+    const secondAdd = await request(server)
+      .post("/api/library")
+      .set("Cookie", otherUserCookie)
+      .send({
+        mediaType: "tv",
+        tmdbId: 1,
+        status: "watching",
+      })
+      .expect(201);
+    const firstEntry = readLibraryEntry(firstAdd.body as unknown);
+    const secondEntry = readLibraryEntry(secondAdd.body as unknown);
+
+    expect(firstAdd.body).toMatchObject({
+      status: "to_watch",
+      media: {
+        id: "tv:1",
+        title: "Goblin",
+      },
+    });
+    expect(secondAdd.body).toMatchObject({
+      status: "watching",
+      mediaId: firstEntry.mediaId,
+    });
+    expect(secondEntry.id).not.toBe(firstEntry.id);
+
+    const { database } = await databaseService.getNativeConnection();
+    expect(await database.collection("media").countDocuments()).toBe(1);
+    expect(
+      await database.collection("userMedia").countDocuments(),
+    ).toBe(2);
+
+    await request(server)
+      .post("/api/library")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        mediaType: "tv",
+        tmdbId: 1,
+        status: "watched",
+      })
+      .expect(409)
+      .expect({
+        error: {
+          code: "MEDIA_ALREADY_IN_LIBRARY",
+          message: "This title is already in your library.",
+        },
+      });
+
+    const filteredLibrary = await request(server)
+      .get("/api/library")
+      .query({ status: "to_watch" })
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+
+    expect(filteredLibrary.body).toEqual([
+        expect.objectContaining({
+          id: firstEntry.id,
+          mediaId: firstEntry.mediaId,
+          status: "to_watch",
+        }),
+      ]);
+
+    await database.collection("userMedia").updateOne(
+      { _id: new ObjectId(firstEntry.id) },
+      {
+        $set: {
+          priorityLaneId: new ObjectId(),
+          priorityPosition: 1,
+        },
+      },
+    );
+
+    await request(server)
+      .patch(`/api/library/${secondEntry.id}/status`)
+      .set("Cookie", authenticatedCookie)
+      .send({ status: "watched" })
+      .expect(404);
+
+    const updatedLibraryEntry = await request(server)
+      .patch(`/api/library/${firstEntry.id}/status`)
+      .set("Cookie", authenticatedCookie)
+      .send({ status: "watched" })
+      .expect(200);
+
+    expect(updatedLibraryEntry.body).toMatchObject({
+      id: firstEntry.id,
+      status: "watched",
+    });
+    const storedUpdatedEntry = await database
+      .collection("userMedia")
+      .findOne({ _id: new ObjectId(firstEntry.id) });
+
+    expect(storedUpdatedEntry).not.toHaveProperty("priorityLaneId");
+    expect(storedUpdatedEntry).not.toHaveProperty("priorityPosition");
+
+    await request(server)
+      .delete(`/api/library/${firstEntry.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    await request(server)
+      .get("/api/library")
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect([]);
+
+    expect(await database.collection("media").countDocuments()).toBe(1);
+    expect(
+      await database.collection("userMedia").countDocuments(),
+    ).toBe(1);
+  });
+
   it("validates search queries and media identities", async () => {
     await request(server)
       .get("/api/search")
@@ -362,4 +485,25 @@ async function registerTestUser(
     .expect(200);
 
   return readCookie(response);
+}
+
+function readLibraryEntry(value: unknown): {
+  id: string;
+  mediaId: string;
+} {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("id" in value) ||
+    typeof value.id !== "string" ||
+    !("mediaId" in value) ||
+    typeof value.mediaId !== "string"
+  ) {
+    throw new Error("Library response did not contain entry identifiers");
+  }
+
+  return {
+    id: value.id,
+    mediaId: value.mediaId,
+  };
 }
