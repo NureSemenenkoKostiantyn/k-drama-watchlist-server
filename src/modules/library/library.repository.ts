@@ -25,6 +25,8 @@ export interface StoredUserMedia {
   rating?: number;
   description?: string;
   categoryIds: Types.ObjectId[];
+  priorityLaneId?: Types.ObjectId;
+  priorityPosition?: number;
   playbackPreference?: PlaybackPreference;
   startedAt?: Date;
   completedAt?: Date;
@@ -286,6 +288,12 @@ function mapUserMediaDocument(
     ...(document.description === undefined
       ? {}
       : { description: document.description }),
+    ...(document.priorityLaneId === undefined
+      ? {}
+      : { priorityLaneId: document.priorityLaneId }),
+    ...(document.priorityPosition === undefined
+      ? {}
+      : { priorityPosition: document.priorityPosition }),
     ...(document.playbackPreference === undefined
       ? {}
       : {

@@ -20,6 +20,7 @@ import { CategoriesModule } from "./modules/categories/categories.module";
 import { HealthModule } from "./modules/health/health.module";
 import { LibraryModule } from "./modules/library/library.module";
 import { MediaModule } from "./modules/media/media.module";
+import { PriorityModule } from "./modules/priority/priority.module";
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { MediaModule } from "./modules/media/media.module";
     HealthModule,
     MediaModule,
     LibraryModule,
+    PriorityModule,
   ],
   providers: [
     {

@@ -9,6 +9,10 @@ FROM dependencies AS development
 
 ENV NODE_ENV=development
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends procps \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY nest-cli.json tsconfig.json tsconfig.build.json ./
 COPY src ./src
 
