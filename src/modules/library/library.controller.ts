@@ -113,10 +113,10 @@ export class LibraryController {
     @Param() params: LibraryEntryParams,
     @Body() input: UpdateLibraryEntryDto,
   ): Promise<LibraryEntryResponse> {
-    return this.libraryService.updateDescription(
+    return this.libraryService.update(
       session.user.id,
       params.entryId,
-      input.description,
+      input,
     );
   }
 

@@ -24,6 +24,7 @@ export interface StoredUserMedia {
   };
   rating?: number;
   description?: string;
+  categoryIds: Types.ObjectId[];
   playbackPreference?: PlaybackPreference;
   startedAt?: Date;
   completedAt?: Date;
@@ -174,16 +175,29 @@ export class LibraryRepository {
     );
   }
 
-  updateDescription(
+  updateDetails(
     userId: Types.ObjectId,
     entryId: Types.ObjectId,
-    description: string | null,
+    input: {
+      description?: string | null;
+      categoryIds?: Types.ObjectId[];
+    },
   ): Promise<StoredUserMedia | null> {
+    const setValues: Record<string, unknown> = {
+      ...(input.description === undefined ||
+      input.description === null
+        ? {}
+        : { description: input.description }),
+      ...(input.categoryIds === undefined
+        ? {}
+        : { categoryIds: input.categoryIds }),
+    };
+
     return this.updateEntry(
       userId,
       entryId,
-      description === null ? {} : { description },
-      description === null ? { description: 1 } : {},
+      setValues,
+      input.description === null ? { description: 1 } : {},
     );
   }
 
@@ -244,6 +258,7 @@ function mapUserMediaDocument(
     userId: document.userId,
     mediaId: document.mediaId,
     status: document.status,
+    categoryIds: [...document.categoryIds],
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
     ...(document.progress === undefined

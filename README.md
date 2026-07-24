@@ -19,13 +19,14 @@ The current backend foundation provides:
   owner-scoped user relationships.
 - Owner-scoped episode progress, half-point ratings, private descriptions, and audio/subtitle
   preferences.
+- Owner-scoped custom category CRUD and multi-category assignment for personal library entries.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Categories, priority lanes, wheels, and social feature modules are intentionally deferred to later
-vertical slices. Email delivery for verification and password resets remains pending until an email
-provider is selected.
+Priority lanes, wheels, and social feature modules are intentionally deferred to later vertical
+slices. Email delivery for verification and password resets remains pending until an email provider
+is selected.
 
 ## Prerequisites
 
@@ -200,7 +201,24 @@ never accepted as authorization evidence. A unique `{ userId, mediaId }` index p
 personal entries. TV progress is validated against the stored season snapshot, excludes specials
 by default, and automatically moves an entry between `to_watch`, `watching`, and `watched` as its
 completed episode count changes. Ratings accept half-point values from 1 through 10; descriptions
-remain private and are limited to 5,000 characters.
+remain private and are limited to 5,000 characters. The generic library update endpoint also accepts
+an ordered, duplicate-free array of category IDs and verifies that every category belongs to the
+authenticated user.
+
+## Categories
+
+Authenticated users can manage custom categories through:
+
+```text
+GET    /api/categories
+POST   /api/categories
+PATCH  /api/categories/:categoryId
+DELETE /api/categories/:categoryId
+```
+
+Names produce owner-scoped Unicode slugs and must contain at least one letter or number. Category
+names are unique per user after slug normalization. Deleting a category removes its ID from every
+personal library entry owned by that user.
 
 ## Container
 

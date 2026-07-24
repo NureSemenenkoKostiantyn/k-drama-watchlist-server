@@ -271,6 +271,120 @@ describe("application (e2e)", () => {
         },
       });
 
+    const comfortCategory = readCategory(
+      (
+        await request(server)
+          .post("/api/categories")
+          .set("Cookie", authenticatedCookie)
+          .send({
+            name: "Comfort drama",
+            icon: "heart",
+          })
+          .expect(201)
+      ).body as unknown,
+    );
+    const thrillerCategory = readCategory(
+      (
+        await request(server)
+          .post("/api/categories")
+          .set("Cookie", authenticatedCookie)
+          .send({ name: "Korean thriller" })
+          .expect(201)
+      ).body as unknown,
+    );
+
+    await request(server)
+      .post("/api/categories")
+      .set("Cookie", authenticatedCookie)
+      .send({ name: "Comfort drama" })
+      .expect(409)
+      .expect({
+        error: {
+          code: "CATEGORY_ALREADY_EXISTS",
+          message: "A category with this name already exists.",
+        },
+      });
+
+    await request(server)
+      .patch(`/api/categories/${comfortCategory.id}`)
+      .set("Cookie", otherUserCookie)
+      .send({ name: "Not mine" })
+      .expect(404);
+
+    await request(server)
+      .patch(`/api/categories/${comfortCategory.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({
+        name: "Comfort dramas",
+        icon: "sparkles",
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          id: comfortCategory.id,
+          name: "Comfort dramas",
+          slug: "comfort-dramas",
+          icon: "sparkles",
+        });
+      });
+
+    await request(server)
+      .patch(`/api/library/${secondEntry.id}`)
+      .set("Cookie", otherUserCookie)
+      .send({ categoryIds: [comfortCategory.id] })
+      .expect(400);
+
+    await request(server)
+      .patch(`/api/library/${firstEntry.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({
+        categoryIds: [
+          comfortCategory.id,
+          thrillerCategory.id,
+        ],
+      })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          categoryIds: [
+            comfortCategory.id,
+            thrillerCategory.id,
+          ],
+        });
+      });
+
+    await request(server)
+      .get("/api/categories")
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual([
+          expect.objectContaining({
+            id: comfortCategory.id,
+            name: "Comfort dramas",
+          }),
+          expect.objectContaining({
+            id: thrillerCategory.id,
+            name: "Korean thriller",
+          }),
+        ]);
+      });
+
+    await request(server)
+      .delete(`/api/categories/${thrillerCategory.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    await request(server)
+      .get(`/api/library/${firstEntry.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          categoryIds: [comfortCategory.id],
+        });
+      });
+
     const filteredLibrary = await request(server)
       .get("/api/library")
       .query({ status: "to_watch" })
@@ -358,11 +472,15 @@ describe("application (e2e)", () => {
     await request(server)
       .patch(`/api/library/${firstEntry.id}`)
       .set("Cookie", authenticatedCookie)
-      .send({ description: "A private personal note." })
+      .send({
+        description: "A private personal note.",
+        categoryIds: [comfortCategory.id],
+      })
       .expect(200)
       .expect((response) => {
         expect(response.body).toMatchObject({
           description: "A private personal note.",
+          categoryIds: [comfortCategory.id],
         });
       });
 
@@ -416,6 +534,19 @@ describe("application (e2e)", () => {
       .expect(200)
       .expect((response) => {
         expect(response.body).not.toHaveProperty("rating");
+      });
+
+    await request(server)
+      .delete(`/api/categories/${comfortCategory.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    await request(server)
+      .get(`/api/library/${firstEntry.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({ categoryIds: [] });
       });
 
     await request(server)
@@ -629,4 +760,19 @@ function readLibraryEntry(value: unknown): {
     id: value.id,
     mediaId: value.mediaId,
   };
+}
+
+function readCategory(value: unknown): {
+  id: string;
+} {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("id" in value) ||
+    typeof value.id !== "string"
+  ) {
+    throw new Error("Category response did not contain an identifier");
+  }
+
+  return { id: value.id };
 }
