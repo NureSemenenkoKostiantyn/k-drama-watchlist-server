@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 
 import { WatchStatus } from "../../common/types/library.types";
 import { MediaType } from "../../common/types/media.types";
+import { type CategoriesService } from "../categories/categories.service";
 import {
   type MediaRepository,
   type StoredMedia,
@@ -25,8 +26,8 @@ describe("LibraryService", () => {
     jest.fn<LibraryRepository["updateProgress"]>();
   const updateRating =
     jest.fn<LibraryRepository["updateRating"]>();
-  const updateDescription =
-    jest.fn<LibraryRepository["updateDescription"]>();
+  const updateDetails =
+    jest.fn<LibraryRepository["updateDetails"]>();
   const updatePlaybackPreference =
     jest.fn<LibraryRepository["updatePlaybackPreference"]>();
   const deleteEntry = jest.fn<LibraryRepository["delete"]>();
@@ -37,6 +38,8 @@ describe("LibraryService", () => {
   const upsertSnapshot =
     jest.fn<MediaRepository["upsertSnapshot"]>();
   const getDetails = jest.fn<MediaService["getDetails"]>();
+  const resolveOwnedIds =
+    jest.fn<CategoriesService["resolveOwnedIds"]>();
   const service = new LibraryService(
     {
       findAll,
@@ -46,7 +49,7 @@ describe("LibraryService", () => {
       updateStatus,
       updateProgress,
       updateRating,
-      updateDescription,
+      updateDetails,
       updatePlaybackPreference,
       delete: deleteEntry,
     } as unknown as LibraryRepository,
@@ -59,6 +62,9 @@ describe("LibraryService", () => {
     {
       getDetails,
     } as unknown as MediaService,
+    {
+      resolveOwnedIds,
+    } as unknown as CategoriesService,
   );
 
   const userId = new Types.ObjectId();
@@ -83,6 +89,7 @@ describe("LibraryService", () => {
     userId,
     mediaId,
     status: WatchStatus.ToWatch,
+    categoryIds: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -298,5 +305,32 @@ describe("LibraryService", () => {
       message: "Episode progress is available only for TV titles.",
     });
     expect(updateProgress).not.toHaveBeenCalled();
+  });
+
+  it("assigns only categories owned by the authenticated user", async () => {
+    const categoryId = new Types.ObjectId();
+    findById.mockResolvedValue(entry);
+    findMediaById.mockResolvedValue(media);
+    resolveOwnedIds.mockResolvedValue([categoryId]);
+    updateDetails.mockResolvedValue({
+      ...entry,
+      categoryIds: [categoryId],
+    });
+
+    await expect(
+      service.update(userId.toHexString(), entryId.toHexString(), {
+        categoryIds: [categoryId.toHexString()],
+      }),
+    ).resolves.toMatchObject({
+      categoryIds: [categoryId.toHexString()],
+    });
+
+    expect(resolveOwnedIds).toHaveBeenCalledWith(
+      userId.toHexString(),
+      [categoryId.toHexString()],
+    );
+    expect(updateDetails).toHaveBeenCalledWith(userId, entryId, {
+      categoryIds: [categoryId],
+    });
   });
 });

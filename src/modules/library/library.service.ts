@@ -10,6 +10,7 @@ import {
   WatchStatus,
 } from "../../common/types/library.types";
 import { MediaType } from "../../common/types/media.types";
+import { CategoriesService } from "../categories/categories.service";
 import {
   MediaRepository,
   type StoredMedia,
@@ -17,6 +18,7 @@ import {
 } from "../media/media.repository";
 import { MediaService } from "../media/media.service";
 import { type AddLibraryEntryDto } from "./dto/add-library-entry.dto";
+import { type UpdateLibraryEntryDto } from "./dto/update-library-entry.dto";
 import { type UpdatePlaybackPreferenceDto } from "./dto/update-playback-preference.dto";
 import { type UpdateProgressDto } from "./dto/update-progress.dto";
 import {
@@ -30,6 +32,7 @@ export class LibraryService {
     private readonly libraryRepository: LibraryRepository,
     private readonly mediaRepository: MediaRepository,
     private readonly mediaService: MediaService,
+    private readonly categoriesService: CategoriesService,
   ) {}
 
   async list(
@@ -214,19 +217,39 @@ export class LibraryService {
     );
   }
 
-  async updateDescription(
+  async update(
     authenticatedUserId: string,
     entryId: string,
-    description: string | null,
+    input: UpdateLibraryEntryDto,
   ): Promise<LibraryEntryResponse> {
+    if (
+      input.description === undefined &&
+      input.categoryIds === undefined
+    ) {
+      throw invalidLibraryUpdate();
+    }
+
+    const categoryIds =
+      input.categoryIds === undefined
+        ? undefined
+        : await this.categoriesService.resolveOwnedIds(
+            authenticatedUserId,
+            input.categoryIds,
+          );
+
     return this.updateOwnedEntry(
       authenticatedUserId,
       entryId,
       (userId, entryIdObject) =>
-        this.libraryRepository.updateDescription(
+        this.libraryRepository.updateDetails(
           userId,
           entryIdObject,
-          description,
+          {
+            ...(input.description === undefined
+              ? {}
+              : { description: input.description }),
+            ...(categoryIds === undefined ? {} : { categoryIds }),
+          },
         ),
     );
   }
@@ -325,6 +348,9 @@ function toLibraryEntryResponse(
     mediaId: entry.mediaId.toHexString(),
     status: entry.status,
     media: toMediaDetails(media),
+    categoryIds: entry.categoryIds.map((categoryId) =>
+      categoryId.toHexString(),
+    ),
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
     ...(entry.progress === undefined
@@ -512,6 +538,14 @@ function invalidProgress(message: string): ApiException {
     statusCode: HttpStatus.BAD_REQUEST,
     code: "VALIDATION_ERROR",
     message,
+  });
+}
+
+function invalidLibraryUpdate(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.BAD_REQUEST,
+    code: "VALIDATION_ERROR",
+    message: "Provide a library field to update.",
   });
 }
 

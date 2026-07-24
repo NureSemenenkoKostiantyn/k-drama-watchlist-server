@@ -16,6 +16,7 @@ import {
   validateEnvironment,
 } from "./config/environment";
 import { DatabaseModule } from "./database/database.module";
+import { CategoriesModule } from "./modules/categories/categories.module";
 import { HealthModule } from "./modules/health/health.module";
 import { LibraryModule } from "./modules/library/library.module";
 import { MediaModule } from "./modules/media/media.module";
@@ -64,6 +65,7 @@ import { MediaModule } from "./modules/media/media.module";
     }),
     DatabaseModule,
     AuthenticationModule,
+    CategoriesModule,
     HealthModule,
     MediaModule,
     LibraryModule,

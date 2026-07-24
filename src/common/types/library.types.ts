@@ -42,6 +42,7 @@ export interface LibraryEntryResponse {
   progress?: LibraryProgress;
   rating?: number;
   description?: string;
+  categoryIds: string[];
   playbackPreference?: PlaybackPreference;
   startedAt?: string;
   completedAt?: string;
