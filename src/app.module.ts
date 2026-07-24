@@ -17,6 +17,7 @@ import {
 } from "./config/environment";
 import { DatabaseModule } from "./database/database.module";
 import { HealthModule } from "./modules/health/health.module";
+import { LibraryModule } from "./modules/library/library.module";
 import { MediaModule } from "./modules/media/media.module";
 
 @Module({
@@ -65,6 +66,7 @@ import { MediaModule } from "./modules/media/media.module";
     AuthenticationModule,
     HealthModule,
     MediaModule,
+    LibraryModule,
   ],
   providers: [
     {
