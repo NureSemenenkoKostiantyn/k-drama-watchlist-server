@@ -9,7 +9,8 @@ The current backend foundation provides:
 - NestJS `ValidationPipe` request validation with `class-validator` and `class-transformer`, plus the same validation approach for environment configuration.
 - Structured Pino request and application logging with sensitive headers redacted.
 - A process-wide, lazily opened Mongoose connection.
-- Better Auth email/password accounts and persistent cookie sessions.
+- Better Auth email/password accounts, verified email addresses, password resets, and persistent
+  cookie sessions.
 - Username onboarding through Better Auth's username plugin.
 - A global NestJS authentication guard, with anonymous routes explicitly marked.
 - Better Auth's MongoDB adapter reusing Mongoose's native client and database.
@@ -26,8 +27,8 @@ The current backend foundation provides:
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Social feature modules are intentionally deferred to later vertical slices. Email delivery for
-verification and password resets remains pending until an email provider is selected.
+Social feature modules are intentionally deferred to later vertical slices. Authentication emails
+are delivered through Resend.
 
 ## Prerequisites
 
@@ -96,12 +97,16 @@ Expected response:
 | `BETTER_AUTH_URL` | No | `http://localhost:8080` | Public backend origin used by Better Auth. |
 | `FRONTEND_URL` | No | `http://localhost:4200` | Trusted frontend origin for authentication requests. |
 | `TMDB_ACCESS_TOKEN` | Yes | — | TMDB API Read Access Token used only by the backend. |
+| `RESEND_API_KEY` | Yes | — | Resend API key used only by the backend for authentication email delivery. |
+| `EMAIL_FROM` | Yes | — | Verified sender, such as `Drama Watch <auth@dahyun.best>`. |
 | `RATE_LIMIT_TTL_MS` | No | `60000` | Default request-rate window in milliseconds. |
 | `RATE_LIMIT_MAX` | No | `120` | Default maximum requests per route and tracker in one window. |
 | `LOG_LEVEL` | No | `info` | Pino log level. |
 
-Do not commit `.env` files or credentials. Set `TMDB_ACCESS_TOKEN` in the local `.env` file and
-provide it to Cloud Run through Secret Manager or equivalent deployment configuration.
+Do not commit `.env` files or credentials. Set `TMDB_ACCESS_TOKEN`, `RESEND_API_KEY`, and
+`EMAIL_FROM` in the local `.env` file when testing complete authentication flows. Provide API keys
+to Cloud Run through Secret Manager or equivalent deployment configuration. `EMAIL_FROM` must use
+a sender accepted by the configured Resend account.
 
 ## Commands
 
@@ -121,10 +126,15 @@ to clear any database whose name is not exactly `drama_watch_test`.
 
 ## Authentication
 
-Better Auth owns routes below `/api/auth/*`. Email/password registration, login, logout, session
-persistence, and unique username onboarding are implemented. The integration disables Nest's
-default body parser and restores JSON and URL-encoded parsing for ordinary controllers, as required
-by `@thallesp/nestjs-better-auth`.
+Better Auth owns routes below `/api/auth/*`. Email/password registration, email verification,
+login, logout, password reset, session persistence, and unique username onboarding are
+implemented. Registration requires verification before login. Verification and reset links expire
+after one hour, and a successful password reset revokes existing sessions. Resend delivery is
+isolated behind the authentication email service so provider failures do not expose credentials,
+tokens, or recipient details.
+
+The integration disables Nest's default body parser and restores JSON and URL-encoded parsing for
+ordinary controllers, as required by `@thallesp/nestjs-better-auth`.
 
 The session token cookie is named exactly `__session` because Firebase Hosting forwards only that
 cookie through rewrites to Cloud Run. Better Auth's automatic secure-cookie name prefix is disabled

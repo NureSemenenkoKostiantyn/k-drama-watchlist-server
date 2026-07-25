@@ -28,6 +28,8 @@ services:
       BETTER_AUTH_URL: http://localhost:8080
       FRONTEND_URL: http://localhost:4200
       TMDB_ACCESS_TOKEN: ${TMDB_ACCESS_TOKEN:-local-development-token}
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_local-development-key}
+      EMAIL_FROM: ${EMAIL_FROM:-Drama Watch <auth@dahyun.best>}
       LOG_LEVEL: debug
       CHOKIDAR_USEPOLLING: "true"
     ports:

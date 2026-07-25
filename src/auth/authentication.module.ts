@@ -5,17 +5,24 @@ import { AuthModule } from "@thallesp/nestjs-better-auth";
 import { type Environment } from "../config/environment";
 import { DatabaseModule } from "../database/database.module";
 import { MongooseDatabaseService } from "../database/mongoose-database.service";
+import { EmailModule } from "../integrations/email/email.module";
+import { TransactionalEmailService } from "../integrations/email/transactional-email.service";
 import { createDramaWatchAuth } from "./auth.factory";
 
 @Module({
   imports: [
     AuthModule.forRootAsync({
       disableGlobalAuthGuard: true,
-      imports: [ConfigModule, DatabaseModule],
-      inject: [MongooseDatabaseService, ConfigService],
+      imports: [ConfigModule, DatabaseModule, EmailModule],
+      inject: [
+        MongooseDatabaseService,
+        ConfigService,
+        TransactionalEmailService,
+      ],
       useFactory: async (
         databaseService: MongooseDatabaseService,
         configService: ConfigService<Environment, true>,
+        emailService: TransactionalEmailService,
       ) => {
         const nativeConnection = await databaseService.getNativeConnection();
 
@@ -23,6 +30,7 @@ import { createDramaWatchAuth } from "./auth.factory";
           auth: createDramaWatchAuth(
             nativeConnection,
             readEnvironment(configService),
+            emailService,
           ),
         };
       },

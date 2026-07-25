@@ -4,6 +4,7 @@ import { username } from "better-auth/plugins";
 
 import { NodeEnvironment, type Environment } from "../config/environment";
 import { type MongooseDatabaseService } from "../database/mongoose-database.service";
+import { type TransactionalEmailService } from "../integrations/email/transactional-email.service";
 
 type NativeConnection = Awaited<
   ReturnType<MongooseDatabaseService["getNativeConnection"]>
@@ -20,6 +21,7 @@ type AuthEnvironment = Pick<
 export function createDramaWatchAuth(
   nativeConnection: NativeConnection,
   environment: AuthEnvironment,
+  emailService: TransactionalEmailService,
 ) {
   return betterAuth({
     appName: "Drama Watch",
@@ -33,6 +35,27 @@ export function createDramaWatchAuth(
       enabled: true,
       maxPasswordLength: 128,
       minPasswordLength: 8,
+      requireEmailVerification: true,
+      resetPasswordTokenExpiresIn: 60 * 60,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: ({ user, url }) =>
+        emailService.sendPasswordReset({
+          actionUrl: url,
+          recipientEmail: user.email,
+          recipientName: user.name,
+        }),
+    },
+    emailVerification: {
+      autoSignInAfterVerification: true,
+      expiresIn: 60 * 60,
+      sendOnSignIn: false,
+      sendOnSignUp: true,
+      sendVerificationEmail: ({ user, url }) =>
+        emailService.sendEmailVerification({
+          actionUrl: url,
+          recipientEmail: user.email,
+          recipientName: user.name,
+        }),
     },
     plugins: [
       username({

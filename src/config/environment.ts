@@ -71,6 +71,14 @@ export class EnvironmentVariables {
   @MinLength(1)
   TMDB_ACCESS_TOKEN!: string;
 
+  @IsString()
+  @MinLength(1)
+  RESEND_API_KEY!: string;
+
+  @IsString()
+  @MinLength(3)
+  EMAIL_FROM!: string;
+
   @Type(() => Number)
   @IsInt()
   @Min(1)
@@ -96,6 +104,8 @@ const environmentKeys = [
   "BETTER_AUTH_URL",
   "FRONTEND_URL",
   "TMDB_ACCESS_TOKEN",
+  "RESEND_API_KEY",
+  "EMAIL_FROM",
   "RATE_LIMIT_TTL_MS",
   "RATE_LIMIT_MAX",
   "LOG_LEVEL",
