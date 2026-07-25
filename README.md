@@ -21,12 +21,13 @@ The current backend foundation provides:
   preferences.
 - Owner-scoped custom category CRUD and multi-category assignment for personal library entries.
 - Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
+- Owner-scoped private wheels with weighted candidates, server-side selection, and spin history.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Wheels and social feature modules are intentionally deferred to later vertical slices. Email
-delivery for verification and password resets remains pending until an email provider is selected.
+Social feature modules are intentionally deferred to later vertical slices. Email delivery for
+verification and password resets remains pending until an email provider is selected.
 
 ## Prerequisites
 
@@ -239,6 +240,33 @@ owner-scoped `to_watch` entries. Moving an entry out of `to_watch` or deleting i
 priority fields. Item moves submit every affected lane in one request. MongoDB Atlas applies the
 validation and complete affected-lane replacement in one transaction; the standalone local/test
 database uses the same combined operation without transactions.
+
+## Private wheels
+
+Authenticated users can manage private wheels through:
+
+```text
+GET    /api/wheels
+POST   /api/wheels
+GET    /api/wheels/:wheelId
+PATCH  /api/wheels/:wheelId
+DELETE /api/wheels/:wheelId
+
+POST   /api/wheels/:wheelId/items
+PATCH  /api/wheels/:wheelId/items/:itemId
+DELETE /api/wheels/:wheelId/items/:itemId
+POST   /api/wheels/:wheelId/reorder
+
+POST   /api/wheels/:wheelId/spin
+GET    /api/wheels/:wheelId/history
+POST   /api/wheels/:wheelId/reset-history
+```
+
+Wheel items reuse shared media snapshots and support weights from 1 through 100 plus an enabled
+state. The backend selects every winner. Fully random mode respects candidate weights; avoid-recent
+mode removes the most recently selected candidate when another enabled option exists. Production
+spin and history-reset writes use MongoDB Atlas transactions. Phase 1 wheels are visible only to
+their owner; shared roles and public visibility remain deferred to the social phase.
 
 ## Container
 
