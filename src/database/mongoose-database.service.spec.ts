@@ -20,6 +20,8 @@ describe("MongooseDatabaseService", () => {
       BETTER_AUTH_URL: "http://localhost:8080",
       FRONTEND_URL: "http://localhost:4200",
       TMDB_ACCESS_TOKEN: "test-tmdb-token",
+      RESEND_API_KEY: "re_test-only-key",
+      EMAIL_FROM: "Drama Watch <auth@example.com>",
       RATE_LIMIT_TTL_MS: 60_000,
       RATE_LIMIT_MAX: 120,
       LOG_LEVEL: "silent",

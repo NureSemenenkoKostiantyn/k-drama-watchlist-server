@@ -8,4 +8,6 @@ process.env.BETTER_AUTH_SECRET = "test-only-secret-with-at-least-32-characters";
 process.env.BETTER_AUTH_URL = "http://localhost:8080";
 process.env.FRONTEND_URL = "http://localhost:4200";
 process.env.TMDB_ACCESS_TOKEN = "test-tmdb-token";
+process.env.RESEND_API_KEY = "re_test-only-key";
+process.env.EMAIL_FROM = "Drama Watch <auth@example.com>";
 process.env.LOG_LEVEL = "silent";

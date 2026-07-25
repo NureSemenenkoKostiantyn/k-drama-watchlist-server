@@ -18,6 +18,10 @@ import { AppModule } from "../src/app.module";
 import { configureApplication } from "../src/app.setup";
 import { tmdbSearchRateLimit } from "../src/common/throttling/throttling.constants";
 import { MongooseDatabaseService } from "../src/database/mongoose-database.service";
+import {
+  type AuthenticationEmailInput,
+  TransactionalEmailService,
+} from "../src/integrations/email/transactional-email.service";
 import { TmdbClient } from "../src/integrations/tmdb/tmdb.client";
 
 class JsonEchoRequest {
@@ -40,6 +44,23 @@ class TestController {
   }
 }
 
+class CapturingTransactionalEmailService extends TransactionalEmailService {
+  readonly verificationUrls = new Map<string, string>();
+  readonly passwordResetUrls = new Map<string, string>();
+
+  sendEmailVerification(
+    input: AuthenticationEmailInput,
+  ): Promise<void> {
+    this.verificationUrls.set(input.recipientEmail, input.actionUrl);
+    return Promise.resolve();
+  }
+
+  sendPasswordReset(input: AuthenticationEmailInput): Promise<void> {
+    this.passwordResetUrls.set(input.recipientEmail, input.actionUrl);
+    return Promise.resolve();
+  }
+}
+
 describe("application (e2e)", () => {
   let app: INestApplication;
   let server: Server;
@@ -47,8 +68,10 @@ describe("application (e2e)", () => {
   let authenticatedCookie: string;
   let rateLimitedCookie: string;
   let otherUserCookie: string;
+  let emailService: CapturingTransactionalEmailService;
 
   beforeAll(async () => {
+    emailService = new CapturingTransactionalEmailService();
     const moduleRef = await Test.createTestingModule({
       controllers: [TestController],
       imports: [AppModule],
@@ -95,6 +118,8 @@ describe("application (e2e)", () => {
           ],
         }),
       })
+      .overrideProvider(TransactionalEmailService)
+      .useValue(emailService)
       .compile();
 
     app = moduleRef.createNestApplication({ bodyParser: false });
@@ -117,16 +142,19 @@ describe("application (e2e)", () => {
       server,
       "search-test@example.com",
       "Search Test",
+      emailService,
     );
     rateLimitedCookie = await registerTestUser(
       server,
       "rate-limit-test@example.com",
       "Rate Limit Test",
+      emailService,
     );
     otherUserCookie = await registerTestUser(
       server,
       "other-search-test@example.com",
       "Other Search Test",
+      emailService,
     );
   });
 
@@ -944,7 +972,7 @@ describe("application (e2e)", () => {
       .expect(200);
   });
 
-  it("registers, persists a session, completes onboarding, and logs out", async () => {
+  it("verifies a registered email before onboarding and login", async () => {
     const email = `integration-${Date.now()}@example.com`;
     const password = "correct-horse-battery-staple";
     const signUpResponse = await request(server)
@@ -954,17 +982,40 @@ describe("application (e2e)", () => {
         email,
         name: "Integration User",
         password,
+        callbackURL: "http://localhost:4200/onboarding",
       })
       .expect(200);
-    const cookie = readCookie(signUpResponse);
 
-    expect(cookie).toMatch(/^__session=/);
     expect(signUpResponse.body).toMatchObject({
+      token: null,
       user: {
         email,
         name: "Integration User",
       },
     });
+    expect(signUpResponse.headers["set-cookie"]).toBeUndefined();
+
+    await request(server)
+      .post("/api/auth/sign-in/email")
+      .set("Origin", "http://localhost:4200")
+      .send({ email, password, rememberMe: true })
+      .expect(403);
+
+    const verificationUrl = requireCapturedUrl(
+      emailService.verificationUrls,
+      email,
+      "verification",
+    );
+    const verificationResponse = await followAuthenticationLink(
+      server,
+      verificationUrl,
+    );
+    const cookie = readCookie(verificationResponse);
+
+    expect(verificationResponse.headers.location).toBe(
+      "http://localhost:4200/onboarding",
+    );
+    expect(cookie).toMatch(/^__session=/);
 
     await request(server)
       .get("/api/test/protected")
@@ -1001,6 +1052,102 @@ describe("application (e2e)", () => {
       .get("/api/test/protected")
       .set("Cookie", cookie)
       .expect(401);
+  });
+
+  it("resets a password generically and revokes existing sessions", async () => {
+    const email = `reset-${Date.now()}@example.com`;
+    const originalPassword = "correct-horse-battery-staple";
+    const newPassword = "new-correct-horse-battery-staple";
+    const cookie = await registerTestUser(
+      server,
+      email,
+      "Reset User",
+      emailService,
+      originalPassword,
+    );
+    const resetRequest = {
+      email,
+      redirectTo: "http://localhost:4200/reset-password",
+    };
+    const genericResponse = {
+      status: true,
+      message:
+        "If this email exists in our system, check your email for the reset link",
+    };
+
+    await request(server)
+      .post("/api/auth/request-password-reset")
+      .set("Origin", "http://localhost:4200")
+      .send(resetRequest)
+      .expect(200)
+      .expect(genericResponse);
+
+    await request(server)
+      .post("/api/auth/request-password-reset")
+      .set("Origin", "http://localhost:4200")
+      .send({
+        ...resetRequest,
+        email: `unknown-${Date.now()}@example.com`,
+      })
+      .expect(200)
+      .expect(genericResponse);
+
+    const resetUrl = requireCapturedUrl(
+      emailService.passwordResetUrls,
+      email,
+      "password reset",
+    );
+    const redirectResponse = await followAuthenticationLink(
+      server,
+      resetUrl,
+    );
+    const redirectLocation = redirectResponse.headers.location;
+
+    if (typeof redirectLocation !== "string") {
+      throw new Error("Password reset link did not return a redirect");
+    }
+
+    const token = new URL(redirectLocation).searchParams.get("token");
+
+    if (!token) {
+      throw new Error("Password reset redirect did not contain a token");
+    }
+
+    await request(server)
+      .post("/api/auth/reset-password")
+      .set("Origin", "http://localhost:4200")
+      .send({ newPassword, token })
+      .expect(200)
+      .expect({ status: true });
+
+    await request(server)
+      .get("/api/test/protected")
+      .set("Cookie", cookie)
+      .expect(401);
+
+    await request(server)
+      .post("/api/auth/sign-in/email")
+      .set("Origin", "http://localhost:4200")
+      .send({
+        email,
+        password: originalPassword,
+        rememberMe: true,
+      })
+      .expect(401);
+
+    const signInResponse = await request(server)
+      .post("/api/auth/sign-in/email")
+      .set("Origin", "http://localhost:4200")
+      .send({ email, password: newPassword, rememberMe: true })
+      .expect(200);
+
+    expect(readCookie(signInResponse)).toMatch(/^__session=/);
+
+    await request(server)
+      .post("/api/auth/reset-password")
+      .set("Origin", "http://localhost:4200")
+      .send({ newPassword: originalPassword, token })
+      .expect(400);
   });
 
   it("returns the standard error shape for an unknown route", async () => {
@@ -1040,18 +1187,59 @@ async function registerTestUser(
   server: Server,
   email: string,
   name: string,
+  emailService: CapturingTransactionalEmailService,
+  password = "correct-horse-battery-staple",
 ): Promise<string> {
-  const response = await request(server)
+  await request(server)
     .post("/api/auth/sign-up/email")
     .set("Origin", "http://localhost:4200")
     .send({
       email,
       name,
-      password: "correct-horse-battery-staple",
+      password,
+      callbackURL: "http://localhost:4200/onboarding",
     })
     .expect(200);
 
+  const verificationUrl = requireCapturedUrl(
+    emailService.verificationUrls,
+    email,
+    "verification",
+  );
+  const response = await followAuthenticationLink(
+    server,
+    verificationUrl,
+  );
+
   return readCookie(response);
+}
+
+async function followAuthenticationLink(
+  server: Server,
+  actionUrl: string,
+): Promise<Response> {
+  const url = new URL(actionUrl);
+
+  return request(server)
+    .get(`${url.pathname}${url.search}`)
+    .redirects(0)
+    .expect((response) => {
+      expect([302, 303]).toContain(response.status);
+    });
+}
+
+function requireCapturedUrl(
+  urls: ReadonlyMap<string, string>,
+  email: string,
+  label: string,
+): string {
+  const url = urls.get(email);
+
+  if (!url) {
+    throw new Error(`No ${label} email was captured for ${email}`);
+  }
+
+  return url;
 }
 
 function readLibraryEntry(value: unknown): {
