@@ -106,6 +106,12 @@ describe("application (e2e)", () => {
     const { database } = await databaseService.getNativeConnection();
     assertTestDatabase(database.databaseName);
     await database.dropDatabase();
+    const connection = databaseService.getConnectionInstance();
+    await Promise.all(
+      Object.values(connection.models).map((model) =>
+        model.syncIndexes(),
+      ),
+    );
 
     authenticatedCookie = await registerTestUser(
       server,
@@ -731,6 +737,171 @@ describe("application (e2e)", () => {
     ).toBe(1);
   });
 
+  it("manages and spins an owner-only private wheel", async () => {
+    const libraryEntry = readLibraryEntry(
+      (
+        await request(server)
+          .post("/api/library")
+          .set("Cookie", authenticatedCookie)
+          .send({
+            mediaType: "tv",
+            tmdbId: 1,
+            status: "to_watch",
+          })
+          .expect(201)
+      ).body as unknown,
+    );
+    const wheel = readWheel(
+      (
+        await request(server)
+          .post("/api/wheels")
+          .set("Cookie", authenticatedCookie)
+          .send({
+            title: "Friday night",
+            description: "Pick our next drama.",
+            selectionMode: "fully_random",
+          })
+          .expect(201)
+      ).body as unknown,
+    );
+
+    await request(server)
+      .get(`/api/wheels/${wheel.id}`)
+      .set("Cookie", otherUserCookie)
+      .expect(404);
+
+    const wheelItem = readWheelItem(
+      (
+        await request(server)
+          .post(`/api/wheels/${wheel.id}/items`)
+          .set("Cookie", authenticatedCookie)
+          .send({
+            mediaId: libraryEntry.mediaId,
+            weight: 3,
+          })
+          .expect(201)
+      ).body as unknown,
+    );
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/items`)
+      .set("Cookie", authenticatedCookie)
+      .send({ mediaId: libraryEntry.mediaId })
+      .expect(409)
+      .expect({
+        error: {
+          code: "WHEEL_ITEM_ALREADY_EXISTS",
+          message: "This title is already on the wheel.",
+        },
+      });
+
+    await request(server)
+      .patch(`/api/wheels/${wheel.id}/items/${wheelItem.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ weight: 5, isEnabled: false })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          id: wheelItem.id,
+          weight: 5,
+          isEnabled: false,
+        });
+      });
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/spin`)
+      .set("Cookie", authenticatedCookie)
+      .expect(400)
+      .expect({
+        error: {
+          code: "WHEEL_HAS_NO_ENABLED_ITEMS",
+          message: "Enable at least one wheel item before spinning.",
+        },
+      });
+
+    await request(server)
+      .patch(`/api/wheels/${wheel.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ selectionMode: "avoid_recent_winners" })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          id: wheel.id,
+          selectionMode: "avoid_recent_winners",
+          itemCount: 1,
+          enabledItemCount: 0,
+        });
+      });
+
+    await request(server)
+      .patch(`/api/wheels/${wheel.id}/items/${wheelItem.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ isEnabled: true })
+      .expect(200);
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/reorder`)
+      .set("Cookie", authenticatedCookie)
+      .send({ itemIds: [wheelItem.id] })
+      .expect(201);
+
+    const spin = readWheelSpin(
+      (
+        await request(server)
+          .post(`/api/wheels/${wheel.id}/spin`)
+          .set("Cookie", authenticatedCookie)
+          .expect(201)
+      ).body as unknown,
+    );
+    expect(spin.wheelItemId).toBe(wheelItem.id);
+
+    await request(server)
+      .get(`/api/wheels/${wheel.id}/history`)
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject([
+          {
+            spinId: spin.spinId,
+            selectedItem: {
+              wheelItemId: wheelItem.id,
+              title: "Goblin",
+            },
+          },
+        ]);
+      });
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/reset-history`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    await request(server)
+      .get(`/api/wheels/${wheel.id}/history`)
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect([]);
+
+    await request(server)
+      .delete(`/api/wheels/${wheel.id}`)
+      .set("Cookie", otherUserCookie)
+      .expect(404);
+
+    await request(server)
+      .delete(`/api/wheels/${wheel.id}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    const { database } = await databaseService.getNativeConnection();
+    expect(await database.collection("wheels").countDocuments()).toBe(0);
+    expect(await database.collection("wheelItems").countDocuments()).toBe(
+      0,
+    );
+    expect(await database.collection("wheelSpins").countDocuments()).toBe(
+      0,
+    );
+  });
+
   it("validates search queries and media identities", async () => {
     await request(server)
       .get("/api/search")
@@ -938,4 +1109,54 @@ function readPriorityLane(value: unknown): { id: string } {
   }
 
   return { id: value.id };
+}
+
+function readWheel(value: unknown): { id: string } {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("id" in value) ||
+    typeof value.id !== "string"
+  ) {
+    throw new Error("Wheel response did not contain an identifier");
+  }
+
+  return { id: value.id };
+}
+
+function readWheelItem(value: unknown): { id: string } {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("id" in value) ||
+    typeof value.id !== "string"
+  ) {
+    throw new Error("Wheel item response did not contain an identifier");
+  }
+
+  return { id: value.id };
+}
+
+function readWheelSpin(value: unknown): {
+  spinId: string;
+  wheelItemId: string;
+} {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("spinId" in value) ||
+    typeof value.spinId !== "string" ||
+    !("selectedItem" in value) ||
+    typeof value.selectedItem !== "object" ||
+    value.selectedItem === null ||
+    !("wheelItemId" in value.selectedItem) ||
+    typeof value.selectedItem.wheelItemId !== "string"
+  ) {
+    throw new Error("Wheel spin response did not contain identifiers");
+  }
+
+  return {
+    spinId: value.spinId,
+    wheelItemId: value.selectedItem.wheelItemId,
+  };
 }
