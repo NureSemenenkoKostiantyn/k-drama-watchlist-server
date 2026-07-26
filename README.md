@@ -28,12 +28,16 @@ The current backend foundation provides:
   addresses.
 - Friend-only title suggestions with transactional acceptance into the recipient's library.
 - Persistent social notifications with owner-scoped read state and unread counts.
+- Accepted-friend media context with public status and rating projections.
+- Reusable user settings with private-by-default library visibility.
+- Paginated friend libraries with server-enforced private, friends-only, and public access.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Public profiles, username discovery, friendship management, friend suggestions, and notifications
-are implemented as the first social vertical slices. Collaborative resources remain deferred.
+Public profiles, username discovery, friendship management, friend suggestions, notifications, safe
+friend context, reusable settings, and visibility-controlled friend libraries are implemented as
+the first social vertical slices. Collaborative resources remain deferred.
 Authentication emails are delivered through Resend.
 
 ## Prerequisites
@@ -65,9 +69,9 @@ docker compose exec api npm run seed:dev
 
 The seed creates the verified demo account `demo@drama-watch.local` with password
 `DramaWatch1!`, three example friendship states, received and sent suggestions, three social
-notifications, four shared media records, a personal library, categories, and default priority
-lanes. It uses upserts, does not clear existing records, and is never run automatically. The
-command refuses to run unless
+notifications, four shared media records, a personal library, accepted-friend media activity,
+friends-only demo visibility settings, categories, and default priority lanes. It uses upserts,
+does not clear existing records, and is never run automatically. The command refuses to run unless
 `NODE_ENV=development`, the database is the local `drama_watch` database, and MongoDB is reached
 through a loopback or Compose hostname; it cannot target MongoDB Atlas.
 
@@ -227,6 +231,33 @@ accents are normalized before scoring. The current user is excluded, and email a
 searched or returned. Candidate retrieval is capped before in-process similarity scoring to keep
 each request bounded.
 
+## User settings and shared libraries
+
+Authenticated users manage reusable application settings through:
+
+```text
+GET   /api/settings
+PATCH /api/settings
+```
+
+The first setting is `libraryVisibility`, with `private`, `friends`, and `public` values. Missing
+settings resolve to `private` without writing a document. Updates use one `userSettings` document
+per Better Auth user, enforced by a unique `userId` index.
+
+Libraries are browsed through:
+
+```text
+GET /api/users/:username/library
+```
+
+Owners always have access. Friends-only libraries require an accepted friendship, while public
+libraries support anonymous viewing. Results are paginated and can filter lifecycle status, media
+type, minimum rating, genre, country, and an inclusive release-year range. Sorting supports recent
+activity, title in either direction, highest rating, and release date in either direction. The
+response contains only normalized shared media, status, and optional rating; it never returns
+private notes, progress, categories, priority data, playback preferences, suggestion provenance,
+lifecycle timestamps, or personal-entry IDs.
+
 ## Friendships
 
 Authenticated users can manage friendships through:
@@ -237,6 +268,7 @@ POST   /api/friends/request
 POST   /api/friends/:friendshipId/accept
 POST   /api/friends/:friendshipId/reject
 DELETE /api/friends/:friendshipId
+GET    /api/media/:mediaType/:tmdbId/friend-context
 ```
 
 The list response separates accepted friends, requests received by the current user, and requests
@@ -247,6 +279,11 @@ pending request. All authorization comes from the Better Auth session.
 Each friendship stores a canonical pair key with a unique index. This prevents both duplicate and
 reversed duplicate relationships even when two users send requests concurrently. Friendship
 responses include only the public user profile contract and never expose email addresses.
+
+Media friend context includes only accepted friends who have the shared title in their library. It
+returns the public profile, lifecycle status, and optional half-point rating. Private descriptions,
+progress, categories, playback preferences, and every other personal-library field are never
+included.
 
 ## Suggestions
 

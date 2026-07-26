@@ -150,6 +150,7 @@ export async function seedDevelopmentData(
     now,
   );
   await seedFriendships(database, users, now);
+  await seedUserSettings(database, users, now);
 
   const media = await seedMedia(database, now);
   await seedSuggestions(database, users, media, now);
@@ -170,6 +171,12 @@ export async function seedDevelopmentData(
     media,
     categories,
     lanes,
+    now,
+  );
+  await seedFriendMediaContext(
+    database,
+    users.acceptedFriend._id,
+    media,
     now,
   );
 }
@@ -312,6 +319,36 @@ async function seedFriendships(
       now,
     ),
   ]);
+}
+
+async function seedUserSettings(
+  database: Db,
+  users: {
+    demo: SeedUser;
+    acceptedFriend: SeedUser;
+  },
+  now: Date,
+): Promise<void> {
+  const settings = database.collection("userSettings");
+
+  await Promise.all(
+    [users.demo._id, users.acceptedFriend._id].map((userId) =>
+      settings.updateOne(
+        { userId },
+        {
+          $set: {
+            libraryVisibility: "friends",
+            updatedAt: now,
+          },
+          $setOnInsert: {
+            userId,
+            createdAt: now,
+          },
+        },
+        { upsert: true },
+      ),
+    ),
+  );
 }
 
 async function upsertFriendship(
@@ -738,6 +775,42 @@ async function seedPersonalLibrary(
       description: "Seeded private note for local card and rating previews.",
       completedAt: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1_000),
     }, now),
+  ]);
+}
+
+async function seedFriendMediaContext(
+  database: Db,
+  friendId: ObjectId,
+  media: Record<string, SeedMedia>,
+  now: Date,
+): Promise<void> {
+  const goblin = requireSeeded(media, "tv:67915");
+  const crashLanding = requireSeeded(media, "tv:94796");
+  const userMedia = database.collection("userMedia");
+
+  await Promise.all([
+    upsertUserMedia(
+      userMedia,
+      friendId,
+      goblin._id,
+      {
+        status: "watched",
+        rating: 8.5,
+        description: "Private seed note hidden from friend context.",
+        categoryIds: [],
+      },
+      now,
+    ),
+    upsertUserMedia(
+      userMedia,
+      friendId,
+      crashLanding._id,
+      {
+        status: "to_watch",
+        categoryIds: [],
+      },
+      now,
+    ),
   ]);
 }
 
