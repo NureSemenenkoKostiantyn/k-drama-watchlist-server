@@ -1,4 +1,5 @@
 import { type MediaDetails } from "./media.types";
+import { type PublicUserProfileResponse } from "./user.types";
 
 export enum WheelVisibility {
   Private = "private",
@@ -22,6 +23,7 @@ export interface WheelResponse {
   title: string;
   description?: string;
   visibility: WheelVisibility;
+  role: WheelRole;
   selectionMode: WheelSelectionMode;
   itemCount: number;
   enabledItemCount: number;
@@ -42,8 +44,14 @@ export interface WheelItemResponse {
   updatedAt: string;
 }
 
+export interface WheelMemberResponse {
+  user: PublicUserProfileResponse;
+  role: WheelRole;
+}
+
 export interface WheelDetailsResponse extends WheelResponse {
   items: WheelItemResponse[];
+  members: WheelMemberResponse[];
 }
 
 export interface SelectedWheelItemResponse {
@@ -56,10 +64,8 @@ export interface SelectedWheelItemResponse {
 export interface WheelSpinResponse {
   spinId: string;
   selectedItem: SelectedWheelItemResponse;
-}
-
-export interface WheelSpinHistoryResponse {
-  spinId: string;
-  selectedItem: SelectedWheelItemResponse;
+  spunBy?: PublicUserProfileResponse;
   createdAt: string;
 }
+
+export type WheelSpinHistoryResponse = WheelSpinResponse;

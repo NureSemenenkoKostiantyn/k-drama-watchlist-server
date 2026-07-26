@@ -1761,7 +1761,7 @@ describe("application (e2e)", () => {
       .expect(204);
   });
 
-  it("manages and spins an owner-only private wheel", async () => {
+  it("shares a private wheel with role-based access and spin history", async () => {
     const libraryEntry = readLibraryEntry(
       (
         await request(server)
@@ -1793,6 +1793,130 @@ describe("application (e2e)", () => {
       .get(`/api/wheels/${wheel.id}`)
       .set("Cookie", otherUserCookie)
       .expect(404);
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/members`)
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "other_search_test", role: "viewer" })
+      .expect(400)
+      .expect({
+        error: {
+          code: "WHEEL_MEMBER_MUST_BE_FRIEND",
+          message: "You can share a wheel only with an accepted friend.",
+        },
+      });
+
+    const friendshipResponse = await request(server)
+      .post("/api/friends/request")
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "other_search_test" })
+      .expect(201);
+    const friendshipId = readString(
+      readObject(
+        friendshipResponse.body as unknown,
+        "Wheel friendship",
+      )["id"],
+      "Wheel friendship ID",
+    );
+
+    await request(server)
+      .post(`/api/friends/${friendshipId}/accept`)
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+
+    const memberResponse = await request(server)
+      .post(`/api/wheels/${wheel.id}/members`)
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "other_search_test", role: "viewer" })
+      .expect(201);
+    const member = readObject(
+      memberResponse.body as unknown,
+      "Wheel member",
+    );
+    const memberUserId = readString(
+      readObject(member["user"], "Wheel member user")["id"],
+      "Wheel member user ID",
+    );
+    expect(member).toMatchObject({
+      role: "viewer",
+      user: { username: "other_search_test" },
+    });
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/members`)
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "other_search_test", role: "editor" })
+      .expect(409)
+      .expect({
+        error: {
+          code: "WHEEL_MEMBER_ALREADY_EXISTS",
+          message: "This friend is already a wheel member.",
+        },
+      });
+
+    await request(server)
+      .get(`/api/wheels/${wheel.id}`)
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          id: wheel.id,
+          role: "viewer",
+          members: [
+            {
+              role: "owner",
+              user: { username: "search_test" },
+            },
+            {
+              role: "viewer",
+              user: { username: "other_search_test" },
+            },
+          ],
+        });
+      });
+
+    await request(server)
+      .get("/api/wheels")
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: wheel.id,
+              role: "viewer",
+            }),
+          ]),
+        );
+      });
+
+    const notificationResponse = await request(server)
+      .get("/api/notifications")
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+    const notificationItems = readObjectArray(
+      readObject(
+        notificationResponse.body as unknown,
+        "Wheel notifications",
+      )["items"],
+      "Wheel notification items",
+    );
+    const wheelNotification = notificationItems.find(
+      (item) =>
+        readObject(item, "Wheel notification")["type"] ===
+        "wheel_invite",
+    );
+    expect(wheelNotification).toMatchObject({
+      type: "wheel_invite",
+      entityId: wheel.id,
+      actor: { username: "search_test" },
+    });
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/items`)
+      .set("Cookie", otherUserCookie)
+      .send({ mediaId: libraryEntry.mediaId })
+      .expect(403);
 
     const wheelItem = readWheelItem(
       (
@@ -1834,6 +1958,11 @@ describe("application (e2e)", () => {
 
     await request(server)
       .post(`/api/wheels/${wheel.id}/spin`)
+      .set("Cookie", otherUserCookie)
+      .expect(403);
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/spin`)
       .set("Cookie", authenticatedCookie)
       .expect(400)
       .expect({
@@ -1864,18 +1993,43 @@ describe("application (e2e)", () => {
       .expect(200);
 
     await request(server)
-      .post(`/api/wheels/${wheel.id}/reorder`)
+      .patch(`/api/wheels/${wheel.id}/members/${memberUserId}`)
       .set("Cookie", authenticatedCookie)
+      .send({ role: "editor" })
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          role: "editor",
+          user: { id: memberUserId },
+        });
+      });
+
+    await request(server)
+      .patch(`/api/wheels/${wheel.id}`)
+      .set("Cookie", otherUserCookie)
+      .send({ title: "Editors cannot rename" })
+      .expect(403);
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/reorder`)
+      .set("Cookie", otherUserCookie)
       .send({ itemIds: [wheelItem.id] })
       .expect(201);
 
-    const spin = readWheelSpin(
-      (
-        await request(server)
+    const spinResponse = await request(server)
           .post(`/api/wheels/${wheel.id}/spin`)
-          .set("Cookie", authenticatedCookie)
+          .set("Cookie", otherUserCookie)
           .expect(201)
-      ).body as unknown,
+          .expect((response) => {
+            expect(response.body).toMatchObject({
+              spunBy: {
+                id: memberUserId,
+                username: "other_search_test",
+              },
+            });
+          });
+    const spin = readWheelSpin(
+      spinResponse.body as unknown,
     );
     expect(spin.wheelItemId).toBe(wheelItem.id);
 
@@ -1891,9 +2045,24 @@ describe("application (e2e)", () => {
               wheelItemId: wheelItem.id,
               title: "Goblin",
             },
+            spunBy: {
+              id: memberUserId,
+              username: "other_search_test",
+            },
           },
         ]);
       });
+
+    await request(server)
+      .patch(`/api/wheels/${wheel.id}/members/${memberUserId}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ role: "viewer" })
+      .expect(200);
+
+    await request(server)
+      .post(`/api/wheels/${wheel.id}/reset-history`)
+      .set("Cookie", otherUserCookie)
+      .expect(403);
 
     await request(server)
       .post(`/api/wheels/${wheel.id}/reset-history`)
@@ -1909,7 +2078,22 @@ describe("application (e2e)", () => {
     await request(server)
       .delete(`/api/wheels/${wheel.id}`)
       .set("Cookie", otherUserCookie)
+      .expect(403);
+
+    await request(server)
+      .delete(`/api/wheels/${wheel.id}/members/${memberUserId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    await request(server)
+      .get(`/api/wheels/${wheel.id}`)
+      .set("Cookie", otherUserCookie)
       .expect(404);
+
+    await request(server)
+      .delete(`/api/friends/${friendshipId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
 
     await request(server)
       .delete(`/api/wheels/${wheel.id}`)

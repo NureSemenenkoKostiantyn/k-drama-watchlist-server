@@ -23,7 +23,8 @@ The current backend foundation provides:
   preferences.
 - Owner-scoped custom category CRUD and multi-category assignment for personal library entries.
 - Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
-- Owner-scoped private wheels with weighted candidates, server-side selection, and spin history.
+- Private shared wheels with owner, editor, and viewer roles, weighted candidates, server-side
+  selection, and attributed spin history.
 - Public user profiles and protected weighted name/username discovery without exposing email
   addresses.
 - Friend-only title suggestions with transactional acceptance into the recipient's library.
@@ -36,8 +37,8 @@ The current backend foundation provides:
 - A production container image suitable for Google Cloud Run.
 
 Public profiles, username discovery, friendship management, friend suggestions, notifications, safe
-friend context, reusable settings, and visibility-controlled friend libraries are implemented as
-the first social vertical slices. Collaborative resources remain deferred.
+friend context, reusable settings, visibility-controlled friend libraries, and accepted-friend
+wheel sharing are implemented as the first social vertical slices. Shared lists remain deferred.
 Authentication emails are delivered through Resend.
 
 ## Prerequisites
@@ -68,9 +69,10 @@ docker compose exec api npm run seed:dev
 ```
 
 The seed creates the verified demo account `demo@drama-watch.local` with password
-`DramaWatch1!`, three example friendship states, received and sent suggestions, three social
+`DramaWatch1!`, three example friendship states, received and sent suggestions, social
 notifications, four shared media records, a personal library, accepted-friend media activity,
-friends-only demo visibility settings, categories, and default priority lanes. It uses upserts,
+friends-only demo visibility settings, categories, default priority lanes, and owned and shared
+wheels with example spin history. It uses upserts,
 does not clear existing records, and is never run automatically. The command refuses to run unless
 `NODE_ENV=development`, the database is the local `drama_watch` database, and MongoDB is reached
 through a loopback or Compose hostname; it cannot target MongoDB Atlas.
@@ -393,9 +395,9 @@ priority fields. Item moves submit every affected lane in one request. MongoDB A
 validation and complete affected-lane replacement in one transaction; the standalone local/test
 database uses the same combined operation without transactions.
 
-## Private wheels
+## Private and shared wheels
 
-Authenticated users can manage private wheels through:
+Authenticated users can manage owned and accepted-friend shared wheels through:
 
 ```text
 GET    /api/wheels
@@ -412,13 +414,20 @@ POST   /api/wheels/:wheelId/reorder
 POST   /api/wheels/:wheelId/spin
 GET    /api/wheels/:wheelId/history
 POST   /api/wheels/:wheelId/reset-history
+
+POST   /api/wheels/:wheelId/members
+PATCH  /api/wheels/:wheelId/members/:memberUserId
+DELETE /api/wheels/:wheelId/members/:memberUserId
 ```
 
 Wheel items reuse shared media snapshots and support weights from 1 through 100 plus an enabled
 state. The backend selects every winner. Fully random mode respects candidate weights; avoid-recent
 mode removes the most recently selected candidate when another enabled option exists. Production
-spin and history-reset writes use MongoDB Atlas transactions. Phase 1 wheels are visible only to
-their owner; shared roles and public visibility remain deferred to the social phase.
+spin and history-reset writes use MongoDB Atlas transactions. Owners may share a wheel directly
+with accepted friends as viewers or editors. Editors can add, change, remove, and reorder candidates
+and can spin; viewers can inspect candidates and attributed shared history. Only owners can change
+wheel settings, manage members, reset history, or delete the wheel. Public and unlisted wheel links
+remain deferred.
 
 ## Container
 

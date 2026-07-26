@@ -18,17 +18,21 @@ import { type DramaWatchAuth } from "../../auth/auth.factory";
 import {
   type WheelDetailsResponse,
   type WheelItemResponse,
+  type WheelMemberResponse,
   type WheelResponse,
   type WheelSpinHistoryResponse,
   type WheelSpinResponse,
 } from "../../common/types/wheel.types";
 import { AddWheelItemDto } from "./dto/add-wheel-item.dto";
+import { AddWheelMemberDto } from "./dto/add-wheel-member.dto";
 import { CreateWheelDto } from "./dto/create-wheel.dto";
 import { ReorderWheelItemsDto } from "./dto/reorder-wheel-items.dto";
 import { UpdateWheelItemDto } from "./dto/update-wheel-item.dto";
+import { UpdateWheelMemberDto } from "./dto/update-wheel-member.dto";
 import { UpdateWheelDto } from "./dto/update-wheel.dto";
 import {
   WheelItemParamsDto,
+  WheelMemberParamsDto,
   WheelParamsDto,
 } from "./dto/wheel-params.dto";
 import { WheelsService } from "./wheels.service";
@@ -81,6 +85,46 @@ export class WheelsController {
     @Param() params: WheelParamsDto,
   ): Promise<WheelSpinResponse> {
     return this.wheelsService.spin(session.user.id, params.wheelId);
+  }
+
+  @Post(":wheelId/members")
+  addMember(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: WheelParamsDto,
+    @Body() input: AddWheelMemberDto,
+  ): Promise<WheelMemberResponse> {
+    return this.wheelsService.addMember(
+      session.user.id,
+      params.wheelId,
+      input,
+    );
+  }
+
+  @Patch(":wheelId/members/:memberUserId")
+  updateMember(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: WheelMemberParamsDto,
+    @Body() input: UpdateWheelMemberDto,
+  ): Promise<WheelMemberResponse> {
+    return this.wheelsService.updateMember(
+      session.user.id,
+      params.wheelId,
+      params.memberUserId,
+      input,
+    );
+  }
+
+  @Delete(":wheelId/members/:memberUserId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeMember(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: WheelMemberParamsDto,
+  ): Promise<void> {
+    return this.wheelsService.removeMember(
+      session.user.id,
+      params.wheelId,
+      params.memberUserId,
+    );
   }
 
   @Post(":wheelId/items")

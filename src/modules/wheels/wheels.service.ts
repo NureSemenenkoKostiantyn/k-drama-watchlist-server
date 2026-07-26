@@ -3,24 +3,35 @@ import { MongoServerError } from "mongodb";
 import { Types } from "mongoose";
 
 import { ApiException } from "../../common/errors/api-exception";
+import { NotificationType } from "../../common/types/notification.types";
 import {
   type SelectedWheelItemResponse,
   type WheelDetailsResponse,
   type WheelItemResponse,
+  type WheelMemberResponse,
   type WheelResponse,
+  WheelRole,
   WheelSelectionMode,
   type WheelSpinHistoryResponse,
   type WheelSpinResponse,
 } from "../../common/types/wheel.types";
+import { FriendsService } from "../friends/friends.service";
 import {
   MediaRepository,
   type StoredMedia,
   toMediaDetails,
 } from "../media/media.repository";
+import { NotificationsService } from "../notifications/notifications.service";
+import {
+  toPublicUserProfile,
+  UsersService,
+} from "../users/users.service";
 import { type AddWheelItemDto } from "./dto/add-wheel-item.dto";
+import { type AddWheelMemberDto } from "./dto/add-wheel-member.dto";
 import { type CreateWheelDto } from "./dto/create-wheel.dto";
 import { type ReorderWheelItemsDto } from "./dto/reorder-wheel-items.dto";
 import { type UpdateWheelItemDto } from "./dto/update-wheel-item.dto";
+import { type UpdateWheelMemberDto } from "./dto/update-wheel-member.dto";
 import { type UpdateWheelDto } from "./dto/update-wheel.dto";
 import {
   type StoredWheel,
@@ -34,6 +45,9 @@ export class WheelsService {
   constructor(
     private readonly wheelsRepository: WheelsRepository,
     private readonly mediaRepository: MediaRepository,
+    private readonly friendsService: FriendsService,
+    private readonly notificationsService: NotificationsService,
+    private readonly usersService: UsersService,
   ) {}
 
   async list(authenticatedUserId: string): Promise<WheelResponse[]> {
@@ -47,6 +61,7 @@ export class WheelsService {
       toWheelResponse(
         wheel,
         itemsByWheelId.get(wheel._id.toHexString()) ?? [],
+        userId,
       ),
     );
   }
@@ -61,7 +76,7 @@ export class WheelsService {
       normalizeOptionalText(input.description),
       input.selectionMode ?? WheelSelectionMode.FullyRandom,
     );
-    return toWheelDetailsResponse(wheel, []);
+    return this.withItems(wheel, wheel.ownerId);
   }
 
   async get(
@@ -71,7 +86,7 @@ export class WheelsService {
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
     const wheel = await this.requireWheel(userId, wheelIdObject);
-    return this.withItems(wheel);
+    return this.withItems(wheel, userId);
   }
 
   async update(
@@ -89,6 +104,7 @@ export class WheelsService {
 
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
+    await this.requireOwnerWheel(userId, wheelIdObject);
     const wheel = await this.wheelsRepository.update(
       userId,
       wheelIdObject,
@@ -112,20 +128,119 @@ export class WheelsService {
       throw wheelNotFound();
     }
 
-    return this.withItems(wheel);
+    return this.withItems(wheel, userId);
   }
 
   async delete(
     authenticatedUserId: string,
     wheelId: string,
   ): Promise<void> {
+    const userId = toObjectId(authenticatedUserId);
+    const wheelIdObject = new Types.ObjectId(wheelId);
+    await this.requireOwnerWheel(userId, wheelIdObject);
     const deleted = await this.wheelsRepository.delete(
-      toObjectId(authenticatedUserId),
-      new Types.ObjectId(wheelId),
+      userId,
+      wheelIdObject,
     );
 
     if (!deleted) {
       throw wheelNotFound();
+    }
+  }
+
+  async addMember(
+    authenticatedUserId: string,
+    wheelId: string,
+    input: AddWheelMemberDto,
+  ): Promise<WheelMemberResponse> {
+    const ownerId = toObjectId(authenticatedUserId);
+    const wheelIdObject = new Types.ObjectId(wheelId);
+    await this.requireOwnerWheel(ownerId, wheelIdObject);
+    const member = await this.usersService.resolveByUsername(
+      input.username,
+    );
+
+    if (member._id.equals(ownerId)) {
+      throw invalidWheel("The wheel owner is already a member.");
+    }
+
+    if (
+      !(await this.friendsService.areAcceptedFriends(
+        ownerId,
+        member._id,
+      ))
+    ) {
+      throw wheelMemberMustBeFriend();
+    }
+
+    const wheel = await this.wheelsRepository.addMember(
+      ownerId,
+      wheelIdObject,
+      member._id,
+      input.role,
+    );
+
+    if (!wheel) {
+      throw wheelMemberAlreadyExists();
+    }
+
+    await this.notificationsService.publish({
+      userId: member._id,
+      type: NotificationType.WheelInvite,
+      actorUserId: ownerId,
+      entityId: wheelIdObject,
+    });
+    return toWheelMemberResponse(member, input.role);
+  }
+
+  async updateMember(
+    authenticatedUserId: string,
+    wheelId: string,
+    memberUserId: string,
+    input: UpdateWheelMemberDto,
+  ): Promise<WheelMemberResponse> {
+    const ownerId = toObjectId(authenticatedUserId);
+    const wheelIdObject = new Types.ObjectId(wheelId);
+    await this.requireOwnerWheel(ownerId, wheelIdObject);
+    const memberId = new Types.ObjectId(memberUserId);
+    const wheel = await this.wheelsRepository.updateMember(
+      ownerId,
+      wheelIdObject,
+      memberId,
+      input.role,
+    );
+
+    if (!wheel) {
+      throw wheelMemberNotFound();
+    }
+
+    const [member] = await this.usersService.findStoredByIds([
+      memberId,
+    ]);
+
+    if (!member) {
+      throw wheelMemberNotFound();
+    }
+
+    return toWheelMemberResponse(member, input.role);
+  }
+
+  async removeMember(
+    authenticatedUserId: string,
+    wheelId: string,
+    memberUserId: string,
+  ): Promise<void> {
+    const ownerId = toObjectId(authenticatedUserId);
+    const wheelIdObject = new Types.ObjectId(wheelId);
+    await this.requireOwnerWheel(ownerId, wheelIdObject);
+    const removed = await this.wheelsRepository.removeMember(
+      ownerId,
+      wheelIdObject,
+      new Types.ObjectId(memberUserId),
+    );
+
+    if (!removed) {
+      throw wheelMemberNotFound();
     }
   }
 
@@ -136,7 +251,7 @@ export class WheelsService {
   ): Promise<WheelItemResponse> {
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
-    await this.requireWheel(userId, wheelIdObject);
+    await this.requireEditorWheel(userId, wheelIdObject);
     const mediaId = new Types.ObjectId(input.mediaId);
     const media = await this.mediaRepository.findById(mediaId);
 
@@ -177,7 +292,7 @@ export class WheelsService {
 
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
-    await this.requireWheel(userId, wheelIdObject);
+    await this.requireEditorWheel(userId, wheelIdObject);
     const item = await this.wheelsRepository.updateItem(
       wheelIdObject,
       new Types.ObjectId(itemId),
@@ -200,7 +315,7 @@ export class WheelsService {
   ): Promise<void> {
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
-    await this.requireWheel(userId, wheelIdObject);
+    await this.requireEditorWheel(userId, wheelIdObject);
     const deleted = await this.wheelsRepository.deleteItem(
       wheelIdObject,
       new Types.ObjectId(itemId),
@@ -225,7 +340,7 @@ export class WheelsService {
   ): Promise<WheelItemResponse[]> {
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
-    await this.requireWheel(userId, wheelIdObject);
+    await this.requireEditorWheel(userId, wheelIdObject);
     const currentItems = await this.wheelsRepository.findItems(
       wheelIdObject,
     );
@@ -257,7 +372,7 @@ export class WheelsService {
   ): Promise<WheelSpinResponse> {
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
-    const wheel = await this.requireWheel(userId, wheelIdObject);
+    const wheel = await this.requireEditorWheel(userId, wheelIdObject);
     const items = await this.wheelsRepository.findItems(wheelIdObject);
     const selectedItem = selectWheelItem(items, wheel.selectionMode);
     const selectedAt = new Date();
@@ -275,10 +390,18 @@ export class WheelsService {
       throw noEnabledWheelItems();
     }
 
-    const media = await this.requireMedia(selectedItem.mediaId);
+    const [media, users] = await Promise.all([
+      this.requireMedia(selectedItem.mediaId),
+      this.usersService.findStoredByIds([userId]),
+    ]);
+    const spunBy = users[0];
     return {
       spinId: spin._id.toHexString(),
       selectedItem: toSelectedItemResponse(selectedItem, media),
+      ...(spunBy === undefined
+        ? {}
+        : { spunBy: toPublicUserProfile(spunBy) }),
+      createdAt: spin.createdAt.toISOString(),
     };
   }
 
@@ -302,7 +425,7 @@ export class WheelsService {
   ): Promise<void> {
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
-    await this.requireWheel(userId, wheelIdObject);
+    await this.requireOwnerWheel(userId, wheelIdObject);
     await this.wheelsRepository.runInTransaction((session) =>
       this.wheelsRepository.resetHistory(wheelIdObject, session),
     );
@@ -321,6 +444,33 @@ export class WheelsService {
     return wheel;
   }
 
+  private async requireOwnerWheel(
+    userId: Types.ObjectId,
+    wheelId: Types.ObjectId,
+  ): Promise<StoredWheel> {
+    const wheel = await this.requireWheel(userId, wheelId);
+
+    if (wheelRoleForUser(wheel, userId) !== WheelRole.Owner) {
+      throw wheelForbidden();
+    }
+
+    return wheel;
+  }
+
+  private async requireEditorWheel(
+    userId: Types.ObjectId,
+    wheelId: Types.ObjectId,
+  ): Promise<StoredWheel> {
+    const wheel = await this.requireWheel(userId, wheelId);
+    const role = wheelRoleForUser(wheel, userId);
+
+    if (role !== WheelRole.Owner && role !== WheelRole.Editor) {
+      throw wheelForbidden();
+    }
+
+    return wheel;
+  }
+
   private async requireMedia(mediaId: Types.ObjectId): Promise<StoredMedia> {
     const media = await this.mediaRepository.findById(mediaId);
 
@@ -333,11 +483,28 @@ export class WheelsService {
 
   private async withItems(
     wheel: StoredWheel,
+    userId: Types.ObjectId,
   ): Promise<WheelDetailsResponse> {
-    const items = await this.wheelsRepository.findItems(wheel._id);
+    const [items, users] = await Promise.all([
+      this.wheelsRepository.findItems(wheel._id),
+      this.usersService.findStoredByIds(
+        uniqueObjectIds(
+          wheel.members.map((member) => member.userId),
+        ),
+      ),
+    ]);
+    const usersById = new Map(
+      users.map((user) => [user._id.toHexString(), user]),
+    );
     return {
-      ...toWheelResponse(wheel, items),
+      ...toWheelResponse(wheel, items, userId),
       items: await this.withMedia(items),
+      members: wheel.members.flatMap((member) => {
+        const user = usersById.get(member.userId.toHexString());
+        return user
+          ? [toWheelMemberResponse(user, member.role)]
+          : [];
+      }),
     };
   }
 
@@ -374,6 +541,12 @@ export class WheelsService {
     const mediaById = new Map(
       media.map((entry) => [entry._id.toHexString(), entry]),
     );
+    const users = await this.usersService.findStoredByIds(
+      uniqueObjectIds(spins.map((spin) => spin.spunByUserId)),
+    );
+    const usersById = new Map(
+      users.map((user) => [user._id.toHexString(), user]),
+    );
 
     return spins.map((spin) => {
       const item = itemById.get(spin.selectedItemId.toHexString());
@@ -387,10 +560,16 @@ export class WheelsService {
           `Wheel spin ${spin._id.toHexString()} references missing data.`,
         );
       }
+      const spunBy = usersById.get(
+        spin.spunByUserId.toHexString(),
+      );
 
       return {
         spinId: spin._id.toHexString(),
         selectedItem: toSelectedItemResponse(item, itemMedia),
+        ...(spunBy === undefined
+          ? {}
+          : { spunBy: toPublicUserProfile(spunBy) }),
         createdAt: spin.createdAt.toISOString(),
       };
     });
@@ -468,11 +647,13 @@ function groupItemsByWheel(
 function toWheelResponse(
   wheel: StoredWheel,
   items: StoredWheelItem[],
+  userId: Types.ObjectId,
 ): WheelResponse {
   return {
     id: wheel._id.toHexString(),
     title: wheel.title,
     visibility: wheel.visibility,
+    role: wheelRoleForUser(wheel, userId) ?? WheelRole.Viewer,
     selectionMode: wheel.selectionMode,
     itemCount: items.length,
     enabledItemCount: items.filter((item) => item.isEnabled).length,
@@ -484,16 +665,28 @@ function toWheelResponse(
   };
 }
 
-function toWheelDetailsResponse(
-  wheel: StoredWheel,
-  items: WheelItemResponse[],
-): WheelDetailsResponse {
+function toWheelMemberResponse(
+  user: Parameters<typeof toPublicUserProfile>[0],
+  role: WheelRole,
+): WheelMemberResponse {
   return {
-    ...toWheelResponse(wheel, []),
-    itemCount: items.length,
-    enabledItemCount: items.filter((item) => item.isEnabled).length,
-    items,
+    user: toPublicUserProfile(user),
+    role,
   };
+}
+
+export function wheelRoleForUser(
+  wheel: StoredWheel,
+  userId: Types.ObjectId,
+): WheelRole | null {
+  if (wheel.ownerId.equals(userId)) {
+    return WheelRole.Owner;
+  }
+
+  return (
+    wheel.members.find((member) => member.userId.equals(userId))
+      ?.role ?? null
+  );
 }
 
 function toWheelItemResponse(
@@ -545,6 +738,12 @@ function normalizeOptionalText(
   return normalized ? normalized : undefined;
 }
 
+function uniqueObjectIds(ids: Types.ObjectId[]): Types.ObjectId[] {
+  return [
+    ...new Map(ids.map((id) => [id.toHexString(), id])).values(),
+  ];
+}
+
 function toObjectId(id: string): Types.ObjectId {
   if (!Types.ObjectId.isValid(id)) {
     throw new Error("Authenticated user ID is not a MongoDB ObjectId");
@@ -566,6 +765,38 @@ function wheelItemNotFound(): ApiException {
     statusCode: HttpStatus.NOT_FOUND,
     code: "NOT_FOUND",
     message: "Wheel item not found.",
+  });
+}
+
+function wheelMemberNotFound(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.NOT_FOUND,
+    code: "NOT_FOUND",
+    message: "Wheel member not found.",
+  });
+}
+
+function wheelForbidden(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.FORBIDDEN,
+    code: "FORBIDDEN",
+    message: "Your wheel role does not allow this action.",
+  });
+}
+
+function wheelMemberMustBeFriend(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.BAD_REQUEST,
+    code: "WHEEL_MEMBER_MUST_BE_FRIEND",
+    message: "You can share a wheel only with an accepted friend.",
+  });
+}
+
+function wheelMemberAlreadyExists(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.CONFLICT,
+    code: "WHEEL_MEMBER_ALREADY_EXISTS",
+    message: "This friend is already a wheel member.",
   });
 }
 
