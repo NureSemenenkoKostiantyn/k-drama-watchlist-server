@@ -287,6 +287,34 @@ describe("application (e2e)", () => {
     });
     expect(searchResults[0]).not.toHaveProperty("email");
 
+    const nameSearchResponse = await request(server)
+      .get("/api/users/search")
+      .query({ q: "Search Test", limit: 5 })
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const nameSearchResults = readObjectArray(
+      nameSearchResponse.body as unknown,
+      "Name search",
+    );
+
+    expect(nameSearchResults[0]).toMatchObject({
+      username: "other_search_test",
+    });
+
+    const similarSearchResponse = await request(server)
+      .get("/api/users/search")
+      .query({ q: "othre_search_test", limit: 5 })
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const similarSearchResults = readObjectArray(
+      similarSearchResponse.body as unknown,
+      "Similar user search",
+    );
+
+    expect(similarSearchResults[0]).toMatchObject({
+      username: "other_search_test",
+    });
+
     await request(server)
       .get("/api/users/search")
       .query({ q: "s" })
@@ -303,6 +331,145 @@ describe("application (e2e)", () => {
           message: "User not found.",
         },
       });
+  });
+
+  it("manages friend requests without trusting client-supplied ownership", async () => {
+    await request(server).get("/api/friends").expect(401);
+
+    const requestResponse = await request(server)
+      .post("/api/friends/request")
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "other_search_test" })
+      .expect(201);
+    const friendship = readObject(
+      requestResponse.body as unknown,
+      "Friend request",
+    );
+    const friendshipId = readString(
+      friendship["id"],
+      "Friend request ID",
+    );
+
+    expect(friendship).toMatchObject({
+      status: "pending",
+      direction: "outgoing",
+      user: {
+        username: "other_search_test",
+        name: "Other Search Test",
+      },
+    });
+    expect(friendship["user"]).not.toHaveProperty("email");
+
+    await request(server)
+      .post("/api/friends/request")
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "other_search_test" })
+      .expect(409)
+      .expect({
+        error: {
+          code: "FRIENDSHIP_ALREADY_EXISTS",
+          message: "A friendship or pending request already exists.",
+        },
+      });
+
+    await request(server)
+      .post("/api/friends/request")
+      .set("Cookie", otherUserCookie)
+      .send({ username: "search_test" })
+      .expect(409);
+
+    const outgoingResponse = await request(server)
+      .get("/api/friends")
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const outgoing = readObject(
+      outgoingResponse.body as unknown,
+      "Outgoing friendships",
+    );
+    expect(
+      readObjectArray(
+        outgoing["outgoingRequests"],
+        "Outgoing requests",
+      ),
+    ).toHaveLength(1);
+
+    const incomingResponse = await request(server)
+      .get("/api/friends")
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+    const incoming = readObject(
+      incomingResponse.body as unknown,
+      "Incoming friendships",
+    );
+    expect(
+      readObjectArray(
+        incoming["incomingRequests"],
+        "Incoming requests",
+      ),
+    ).toHaveLength(1);
+
+    await request(server)
+      .post(`/api/friends/${friendshipId}/accept`)
+      .set("Cookie", rateLimitedCookie)
+      .expect(404);
+
+    await request(server)
+      .post(`/api/friends/${friendshipId}/accept`)
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          status: "accepted",
+          direction: "incoming",
+          user: { username: "search_test" },
+        });
+      });
+
+    const friendsResponse = await request(server)
+      .get("/api/friends")
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const friends = readObject(
+      friendsResponse.body as unknown,
+      "Accepted friendships",
+    );
+    expect(
+      readObjectArray(friends["friends"], "Friends"),
+    ).toHaveLength(1);
+
+    await request(server)
+      .delete(`/api/friends/${friendshipId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    const rejectedRequestResponse = await request(server)
+      .post("/api/friends/request")
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "rate_limit_test" })
+      .expect(201);
+    const rejectedRequest = readObject(
+      rejectedRequestResponse.body as unknown,
+      "Rejected friend request",
+    );
+    const rejectedRequestId = readString(
+      rejectedRequest["id"],
+      "Rejected friend request ID",
+    );
+
+    await request(server)
+      .post(`/api/friends/${rejectedRequestId}/reject`)
+      .set("Cookie", rateLimitedCookie)
+      .expect(204);
+
+    const emptyFriendsResponse = await request(server)
+      .get("/api/friends")
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    expect(emptyFriendsResponse.body).toEqual({
+      friends: [],
+      incomingRequests: [],
+      outgoingRequests: [],
+    });
   });
 
   it("serves one shared cached K-drama discovery portal", async () => {
@@ -1457,6 +1624,14 @@ function readObject(
   }
 
   return value as Record<string, unknown>;
+}
+
+function readString(value: unknown, label: string): string {
+  if (typeof value !== "string") {
+    throw new Error(`${label} was not a string`);
+  }
+
+  return value;
 }
 
 function readPriorityLanes(value: unknown): Array<{ id: string }> {
