@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { FriendsModule } from "../friends/friends.module";
 import { LibraryModule } from "../library/library.module";
 import { MediaModule } from "../media/media.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { UsersModule } from "../users/users.module";
 import { suggestionModelProvider } from "./suggestion-model.provider";
 import { SuggestionsController } from "./suggestions.controller";
@@ -14,6 +15,7 @@ import { SuggestionsService } from "./suggestions.service";
     FriendsModule,
     LibraryModule,
     MediaModule,
+    NotificationsModule,
     UsersModule,
   ],
   controllers: [SuggestionsController],

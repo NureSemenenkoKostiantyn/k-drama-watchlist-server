@@ -2,6 +2,7 @@ import { jest } from "@jest/globals";
 import { Types } from "mongoose";
 
 import { MediaType } from "../../common/types/media.types";
+import { NotificationType } from "../../common/types/notification.types";
 import { SuggestionStatus } from "../../common/types/suggestion.types";
 import { type FriendsService } from "../friends/friends.service";
 import {
@@ -9,6 +10,7 @@ import {
   type StoredMedia,
 } from "../media/media.repository";
 import { type MediaService } from "../media/media.service";
+import { type NotificationsService } from "../notifications/notifications.service";
 import { type StoredPublicUser } from "../users/users.repository";
 import { type UsersService } from "../users/users.service";
 import {
@@ -40,6 +42,7 @@ describe("SuggestionsService", () => {
   const upsertSnapshot =
     jest.fn<MediaRepository["upsertSnapshot"]>();
   const getDetails = jest.fn<MediaService["getDetails"]>();
+  const publish = jest.fn<NotificationsService["publish"]>();
   const service = new SuggestionsService(
     {
       findAllForUser,
@@ -59,6 +62,7 @@ describe("SuggestionsService", () => {
       upsertSnapshot,
     } as unknown as MediaRepository,
     { getDetails } as unknown as MediaService,
+    { publish } as unknown as NotificationsService,
   );
 
   beforeEach(() => {
@@ -91,6 +95,12 @@ describe("SuggestionsService", () => {
       media._id,
       "Watch this next",
     );
+    expect(publish).toHaveBeenCalledWith({
+      userId: recipient._id,
+      type: NotificationType.SuggestionReceived,
+      actorUserId: sender._id,
+      entityId: suggestion._id,
+    });
   });
 
   it("rejects suggestions to users who are not accepted friends", async () => {

@@ -27,12 +27,13 @@ The current backend foundation provides:
 - Public user profiles and protected weighted name/username discovery without exposing email
   addresses.
 - Friend-only title suggestions with transactional acceptance into the recipient's library.
+- Persistent social notifications with owner-scoped read state and unread counts.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Public profiles, username discovery, friendship management, and friend suggestions are implemented
-as the first social vertical slices. Notifications and collaborative resources remain deferred.
+Public profiles, username discovery, friendship management, friend suggestions, and notifications
+are implemented as the first social vertical slices. Collaborative resources remain deferred.
 Authentication emails are delivered through Resend.
 
 ## Prerequisites
@@ -63,9 +64,10 @@ docker compose exec api npm run seed:dev
 ```
 
 The seed creates the verified demo account `demo@drama-watch.local` with password
-`DramaWatch1!`, three example friendship states, received and sent suggestions, four shared media
-records, a personal library, categories, and default priority lanes. It uses upserts, does not clear
-existing records, and is never run automatically. The command refuses to run unless
+`DramaWatch1!`, three example friendship states, received and sent suggestions, three social
+notifications, four shared media records, a personal library, categories, and default priority
+lanes. It uses upserts, does not clear existing records, and is never run automatically. The
+command refuses to run unless
 `NODE_ENV=development`, the database is the local `drama_watch` database, and MongoDB is reached
 through a loopback or Compose hostname; it cannot target MongoDB Atlas.
 
@@ -269,6 +271,24 @@ entry only when the title is absent, preserves every field of an existing person
 the suggestion accepted. Those writes run in one transaction on production MongoDB Atlas; local and
 test MongoDB execute the same combined operation without a transaction. Dismissal never changes the
 library.
+
+## Notifications
+
+Authenticated users can manage their notification feed through:
+
+```text
+GET  /api/notifications
+POST /api/notifications/:notificationId/read
+POST /api/notifications/read-all
+```
+
+The feed returns the 50 most recent owner-scoped notifications, their public actor profiles, and a
+complete unread count. Friend requests, accepted friend requests, and received title suggestions
+create notifications. Resending a pending suggestion refreshes its existing notification and marks
+it unread instead of creating duplicates. A user cannot read another user's notification.
+
+Notification publishing is secondary to the social action: a delivery failure is logged but does
+not turn an already-created friendship or suggestion into a failed API response.
 
 ## Personal library
 
