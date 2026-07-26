@@ -153,6 +153,7 @@ export async function seedDevelopmentData(
 
   const media = await seedMedia(database, now);
   await seedSuggestions(database, users, media, now);
+  await seedNotifications(database, users, media, now);
   const categories = await seedCategories(
     database,
     users.demo._id,
@@ -512,6 +513,93 @@ async function seedSuggestions(
       { upsert: true },
     ),
   ]);
+}
+
+async function seedNotifications(
+  database: Db,
+  users: {
+    demo: SeedUser;
+    acceptedFriend: SeedUser;
+    incomingFriend: SeedUser;
+  },
+  media: Record<string, SeedMedia>,
+  now: Date,
+): Promise<void> {
+  const goblin = requireSeeded(media, "tv:67915");
+  const [acceptedFriendship, incomingFriendship, suggestion] =
+    await Promise.all([
+      database.collection("friendships").findOne({
+        requesterId: users.demo._id,
+        recipientId: users.acceptedFriend._id,
+      }),
+      database.collection("friendships").findOne({
+        requesterId: users.incomingFriend._id,
+        recipientId: users.demo._id,
+      }),
+      database.collection("suggestions").findOne({
+        fromUserId: users.acceptedFriend._id,
+        toUserId: users.demo._id,
+        mediaId: goblin._id,
+      }),
+    ]);
+
+  if (!acceptedFriendship || !incomingFriendship || !suggestion) {
+    throw new Error(
+      "Development seed could not resolve notification entities.",
+    );
+  }
+
+  const notifications = database.collection("notifications");
+  const inputs = [
+    {
+      type: "friend_request_accepted",
+      actorUserId: users.acceptedFriend._id,
+      entityId: acceptedFriendship._id,
+      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1_000),
+      isRead: true,
+    },
+    {
+      type: "friend_request",
+      actorUserId: users.incomingFriend._id,
+      entityId: incomingFriendship._id,
+      createdAt: new Date(now.getTime() - 60 * 60 * 1_000),
+      isRead: false,
+    },
+    {
+      type: "suggestion_received",
+      actorUserId: users.acceptedFriend._id,
+      entityId: suggestion._id,
+      createdAt: new Date(now.getTime() - 30 * 60 * 1_000),
+      isRead: false,
+    },
+  ];
+
+  await Promise.all(
+    inputs.map((input) =>
+      notifications.updateOne(
+        {
+          userId: users.demo._id,
+          type: input.type,
+          entityId: input.entityId,
+        },
+        {
+          $set: {
+            actorUserId: input.actorUserId,
+            createdAt: input.createdAt,
+            isRead: input.isRead,
+            ...(input.isRead ? { readAt: input.createdAt } : {}),
+          },
+          ...(input.isRead ? {} : { $unset: { readAt: 1 } }),
+          $setOnInsert: {
+            userId: users.demo._id,
+            type: input.type,
+            entityId: input.entityId,
+          },
+        },
+        { upsert: true },
+      ),
+    ),
+  );
 }
 
 async function seedCategories(

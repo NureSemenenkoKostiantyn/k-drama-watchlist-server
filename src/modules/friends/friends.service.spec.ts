@@ -1,6 +1,8 @@
 import { jest } from "@jest/globals";
 import { Types } from "mongoose";
 
+import { NotificationType } from "../../common/types/notification.types";
+import { type NotificationsService } from "../notifications/notifications.service";
 import {
   type FriendsRepository,
   type StoredFriendship,
@@ -26,6 +28,7 @@ describe("FriendsService", () => {
     jest.fn<UsersService["resolveByUsername"]>();
   const findStoredByIds =
     jest.fn<UsersService["findStoredByIds"]>();
+  const publish = jest.fn<NotificationsService["publish"]>();
   const service = new FriendsService(
     {
       findAllForUser,
@@ -38,6 +41,7 @@ describe("FriendsService", () => {
       resolveByUsername,
       findStoredByIds,
     } as unknown as UsersService,
+    { publish } as unknown as NotificationsService,
   );
   const currentUserId = new Types.ObjectId();
   const otherUserId = new Types.ObjectId();
@@ -88,6 +92,12 @@ describe("FriendsService", () => {
       otherUserId,
       createPairKey(currentUserId, otherUserId),
     );
+    expect(publish).toHaveBeenCalledWith({
+      userId: otherUserId,
+      type: NotificationType.FriendRequest,
+      actorUserId: currentUserId,
+      entityId: friendship._id,
+    });
   });
 
   it("rejects requests targeting the authenticated user", async () => {
@@ -165,6 +175,12 @@ describe("FriendsService", () => {
       currentUserId,
       expect.any(Date),
     );
+    expect(publish).toHaveBeenCalledWith({
+      userId: otherUserId,
+      type: NotificationType.FriendRequestAccepted,
+      actorUserId: currentUserId,
+      entityId: acceptedFriendship._id,
+    });
   });
 
   it("returns the same not-found response for unauthorized mutations", async () => {

@@ -335,6 +335,7 @@ describe("application (e2e)", () => {
 
   it("manages friend requests without trusting client-supplied ownership", async () => {
     await request(server).get("/api/friends").expect(401);
+    await request(server).get("/api/notifications").expect(401);
 
     const requestResponse = await request(server)
       .post("/api/friends/request")
@@ -359,6 +360,43 @@ describe("application (e2e)", () => {
       },
     });
     expect(friendship["user"]).not.toHaveProperty("email");
+
+    const requestNotificationsResponse = await request(server)
+      .get("/api/notifications")
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+    const requestNotifications = readObject(
+      requestNotificationsResponse.body as unknown,
+      "Friend request notifications",
+    );
+    const requestNotificationItems = readObjectArray(
+      requestNotifications["items"],
+      "Friend request notification items",
+    );
+    expect(requestNotifications["unreadCount"]).toBe(1);
+    expect(requestNotificationItems[0]).toMatchObject({
+      type: "friend_request",
+      entityId: friendshipId,
+      isRead: false,
+      actor: { username: "search_test" },
+    });
+    const requestNotificationId = readString(
+      readObject(
+        requestNotificationItems[0],
+        "Friend request notification",
+      )["id"],
+      "Friend request notification ID",
+    );
+
+    await request(server)
+      .post(`/api/notifications/${requestNotificationId}/read`)
+      .set("Cookie", authenticatedCookie)
+      .expect(404);
+
+    await request(server)
+      .post(`/api/notifications/${requestNotificationId}/read`)
+      .set("Cookie", otherUserCookie)
+      .expect(204);
 
     await request(server)
       .post("/api/friends/request")
@@ -424,6 +462,32 @@ describe("application (e2e)", () => {
           user: { username: "search_test" },
         });
       });
+
+    const acceptedNotificationsResponse = await request(server)
+      .get("/api/notifications")
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const acceptedNotifications = readObject(
+      acceptedNotificationsResponse.body as unknown,
+      "Accepted friendship notifications",
+    );
+    expect(acceptedNotifications["unreadCount"]).toBe(1);
+    expect(
+      readObjectArray(
+        acceptedNotifications["items"],
+        "Accepted friendship notification items",
+      )[0],
+    ).toMatchObject({
+      type: "friend_request_accepted",
+      entityId: friendshipId,
+      actor: { username: "other_search_test" },
+    });
+
+    await request(server)
+      .post("/api/notifications/read-all")
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect({ updatedCount: 1 });
 
     const friendsResponse = await request(server)
       .get("/api/friends")
@@ -589,6 +653,11 @@ describe("application (e2e)", () => {
       .set("Cookie", rateLimitedCookie)
       .expect(200);
 
+    await request(server)
+      .post("/api/notifications/read-all")
+      .set("Cookie", rateLimitedCookie)
+      .expect(200);
+
     const createResponse = await request(server)
       .post("/api/suggestions")
       .set("Cookie", authenticatedCookie)
@@ -665,6 +734,55 @@ describe("application (e2e)", () => {
       status: "pending",
     });
     expect(clearMessageResponse.body).not.toHaveProperty("message");
+
+    const suggestionNotificationsResponse = await request(server)
+      .get("/api/notifications")
+      .set("Cookie", rateLimitedCookie)
+      .expect(200);
+    const suggestionNotifications = readObject(
+      suggestionNotificationsResponse.body as unknown,
+      "Suggestion notifications",
+    );
+    const unreadSuggestionNotifications = readObjectArray(
+      suggestionNotifications["items"],
+      "Suggestion notification items",
+    ).filter((item) => {
+      const notification = readObject(item, "Suggestion notification");
+      return (
+        notification["type"] === "suggestion_received" &&
+        notification["isRead"] === false
+      );
+    });
+    expect(suggestionNotifications["unreadCount"]).toBe(1);
+    expect(unreadSuggestionNotifications).toHaveLength(1);
+    expect(unreadSuggestionNotifications[0]).toMatchObject({
+      type: "suggestion_received",
+      entityId: suggestionId,
+      actor: { username: "search_test" },
+    });
+    const suggestionNotificationId = readString(
+      readObject(
+        unreadSuggestionNotifications[0],
+        "Unread suggestion notification",
+      )["id"],
+      "Suggestion notification ID",
+    );
+
+    await request(server)
+      .post(`/api/notifications/${suggestionNotificationId}/read`)
+      .set("Cookie", rateLimitedCookie)
+      .expect(204);
+
+    const readSuggestionNotifications = await request(server)
+      .get("/api/notifications")
+      .set("Cookie", rateLimitedCookie)
+      .expect(200);
+    expect(
+      readObject(
+        readSuggestionNotifications.body as unknown,
+        "Read suggestion notifications",
+      )["unreadCount"],
+    ).toBe(0);
 
     await request(server)
       .post(`/api/suggestions/${suggestionId}/accept`)

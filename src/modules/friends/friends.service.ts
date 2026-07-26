@@ -8,6 +8,8 @@ import {
   type FriendshipResponse,
   type FriendshipsResponse,
 } from "../../common/types/friendship.types";
+import { NotificationType } from "../../common/types/notification.types";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   toPublicUserProfile,
   UsersService,
@@ -24,6 +26,7 @@ export class FriendsService {
   constructor(
     private readonly friendsRepository: FriendsRepository,
     private readonly usersService: UsersService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async list(authenticatedUserId: string): Promise<FriendshipsResponse> {
@@ -89,6 +92,12 @@ export class FriendsService {
         recipient._id,
         createPairKey(requesterId, recipient._id),
       );
+      await this.notificationsService.publish({
+        userId: recipient._id,
+        type: NotificationType.FriendRequest,
+        actorUserId: requesterId,
+        entityId: friendship._id,
+      });
       return toFriendshipResponse(
         friendship,
         recipient,
@@ -135,6 +144,13 @@ export class FriendsService {
     if (!requester) {
       throw friendshipNotFound();
     }
+
+    await this.notificationsService.publish({
+      userId: friendship.requesterId,
+      type: NotificationType.FriendRequestAccepted,
+      actorUserId: recipientId,
+      entityId: friendship._id,
+    });
 
     return toFriendshipResponse(friendship, requester, recipientId);
   }

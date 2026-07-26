@@ -7,6 +7,7 @@ import {
   type SuggestionResponse,
   type SuggestionsResponse,
 } from "../../common/types/suggestion.types";
+import { NotificationType } from "../../common/types/notification.types";
 import { FriendsService } from "../friends/friends.service";
 import {
   MediaRepository,
@@ -14,6 +15,7 @@ import {
   toMediaDetails,
 } from "../media/media.repository";
 import { MediaService } from "../media/media.service";
+import { NotificationsService } from "../notifications/notifications.service";
 import { type StoredPublicUser } from "../users/users.repository";
 import {
   toPublicUserProfile,
@@ -33,6 +35,7 @@ export class SuggestionsService {
     private readonly usersService: UsersService,
     private readonly mediaRepository: MediaRepository,
     private readonly mediaService: MediaService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async list(authenticatedUserId: string): Promise<SuggestionsResponse> {
@@ -130,6 +133,12 @@ export class SuggestionsService {
       media._id,
       input.message,
     );
+    await this.notificationsService.publish({
+      userId: recipient._id,
+      type: NotificationType.SuggestionReceived,
+      actorUserId: fromUserId,
+      entityId: suggestion._id,
+    });
     return toSuggestionResponse(
       suggestion,
       recipient,
