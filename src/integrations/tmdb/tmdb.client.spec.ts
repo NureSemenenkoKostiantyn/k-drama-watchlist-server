@@ -49,6 +49,28 @@ describe("TmdbClient", () => {
     });
   });
 
+  it("maps typed discovery filters to TMDB query parameters", async () => {
+    get.mockReturnValue(of({ data: { results: [] } }));
+
+    await client.discover({
+      mediaType: MediaType.Tv,
+      sortBy: "vote_average.desc",
+      originCountry: "KR",
+      voteCountGte: 200,
+    });
+
+    expect(get).toHaveBeenCalledWith("/discover/tv", {
+      params: {
+        include_adult: false,
+        language: "en-US",
+        page: 1,
+        sort_by: "vote_average.desc",
+        "vote_count.gte": 200,
+        with_origin_country: "KR",
+      },
+    });
+  });
+
   it("maps other upstream failures without exposing their response", async () => {
     get.mockReturnValue(
       throwError(() => ({

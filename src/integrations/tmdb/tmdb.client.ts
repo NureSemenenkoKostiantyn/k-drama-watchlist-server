@@ -15,6 +15,23 @@ export interface TmdbSearchRequest {
   type: SearchMediaType;
 }
 
+export type TmdbDiscoverSort =
+  | "first_air_date.desc"
+  | "popularity.desc"
+  | "vote_average.desc";
+
+export interface TmdbDiscoverRequest {
+  mediaType: MediaType;
+  page?: number;
+  sortBy: TmdbDiscoverSort;
+  originCountry?: string;
+  airDateGte?: string;
+  airDateLte?: string;
+  firstAirDateGte?: string;
+  firstAirDateLte?: string;
+  voteCountGte?: number;
+}
+
 @Injectable()
 export class TmdbClient {
   private readonly logger = new Logger(TmdbClient.name);
@@ -36,6 +53,33 @@ export class TmdbClient {
 
   getDetails(mediaType: MediaType, tmdbId: number): Promise<unknown> {
     return this.get(`/${mediaType}/${tmdbId}`, {}, true);
+  }
+
+  discover(request: TmdbDiscoverRequest): Promise<unknown> {
+    return this.get(`/discover/${request.mediaType}`, {
+      include_adult: false,
+      language: "en-US",
+      page: request.page ?? 1,
+      sort_by: request.sortBy,
+      ...(request.originCountry === undefined
+        ? {}
+        : { with_origin_country: request.originCountry }),
+      ...(request.airDateGte === undefined
+        ? {}
+        : { "air_date.gte": request.airDateGte }),
+      ...(request.airDateLte === undefined
+        ? {}
+        : { "air_date.lte": request.airDateLte }),
+      ...(request.firstAirDateGte === undefined
+        ? {}
+        : { "first_air_date.gte": request.firstAirDateGte }),
+      ...(request.firstAirDateLte === undefined
+        ? {}
+        : { "first_air_date.lte": request.firstAirDateLte }),
+      ...(request.voteCountGte === undefined
+        ? {}
+        : { "vote_count.gte": request.voteCountGte }),
+    });
   }
 
   private async get(

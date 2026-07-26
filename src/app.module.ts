@@ -17,6 +17,7 @@ import {
 } from "./config/environment";
 import { DatabaseModule } from "./database/database.module";
 import { CategoriesModule } from "./modules/categories/categories.module";
+import { DiscoveryModule } from "./modules/discovery/discovery.module";
 import { HealthModule } from "./modules/health/health.module";
 import { LibraryModule } from "./modules/library/library.module";
 import { MediaModule } from "./modules/media/media.module";
@@ -69,6 +70,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     DatabaseModule,
     AuthenticationModule,
     CategoriesModule,
+    DiscoveryModule,
     HealthModule,
     MediaModule,
     LibraryModule,

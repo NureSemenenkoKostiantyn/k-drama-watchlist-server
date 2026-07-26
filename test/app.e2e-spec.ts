@@ -17,6 +17,7 @@ import request, { type Response } from "supertest";
 import { AppModule } from "../src/app.module";
 import { configureApplication } from "../src/app.setup";
 import { tmdbSearchRateLimit } from "../src/common/throttling/throttling.constants";
+import { MediaType } from "../src/common/types/media.types";
 import { MongooseDatabaseService } from "../src/database/mongoose-database.service";
 import {
   type AuthenticationEmailInput,
@@ -69,9 +70,41 @@ describe("application (e2e)", () => {
   let rateLimitedCookie: string;
   let otherUserCookie: string;
   let emailService: CapturingTransactionalEmailService;
+  let tmdbDiscover: jest.MockedFunction<TmdbClient["discover"]>;
 
   beforeAll(async () => {
     emailService = new CapturingTransactionalEmailService();
+    tmdbDiscover = jest
+      .fn<TmdbClient["discover"]>()
+      .mockImplementation((input) =>
+        Promise.resolve({
+          page: 1,
+          total_pages: 1,
+          total_results: 1,
+          results: [
+            input.mediaType === MediaType.Tv
+              ? {
+                  id: 10,
+                  name: "Cached K-drama",
+                  original_name: "Cached K-drama",
+                  origin_country: ["KR"],
+                  genre_ids: [18],
+                  backdrop_path: "/cached-kdrama.jpg",
+                  vote_average: 8.4,
+                  vote_count: 850,
+                }
+              : {
+                  id: 20,
+                  title: "Cached movie",
+                  original_title: "Cached movie",
+                  genre_ids: [18],
+                  backdrop_path: "/cached-movie.jpg",
+                  vote_average: 8.1,
+                  vote_count: 1_200,
+                },
+          ],
+        }),
+      );
     const moduleRef = await Test.createTestingModule({
       controllers: [TestController],
       imports: [AppModule],
@@ -117,6 +150,7 @@ describe("application (e2e)", () => {
             },
           ],
         }),
+        discover: tmdbDiscover,
       })
       .overrideProvider(TransactionalEmailService)
       .useValue(emailService)
@@ -171,7 +205,7 @@ describe("application (e2e)", () => {
       otherUserCookie,
       "other_search_test",
     );
-  });
+  }, 60_000);
 
   afterAll(async () => {
     const { database } = await databaseService.getNativeConnection();
@@ -269,6 +303,39 @@ describe("application (e2e)", () => {
           message: "User not found.",
         },
       });
+  });
+
+  it("serves one shared cached K-drama discovery portal", async () => {
+    tmdbDiscover.mockClear();
+
+    const firstResponse = await request(server)
+      .get("/api/discovery/home")
+      .expect(200);
+    const firstBody = readObject(
+      firstResponse.body as unknown,
+      "Discovery home",
+    );
+    const shelves = readObjectArray(
+      firstBody["shelves"],
+      "Discovery shelves",
+    );
+
+    expect(shelves).toHaveLength(5);
+    expect(firstBody["featured"]).toMatchObject({
+      id: "tv:10",
+      title: "Cached K-drama",
+    });
+    expect(tmdbDiscover).toHaveBeenCalledTimes(5);
+
+    await request(server)
+      .get("/api/discovery/home")
+      .expect(200);
+    expect(tmdbDiscover).toHaveBeenCalledTimes(5);
+
+    const { database } = await databaseService.getNativeConnection();
+    expect(
+      await database.collection("discoveryCache").countDocuments(),
+    ).toBe(5);
   });
 
   it("searches TMDB through the protected normalized API", async () => {
@@ -1375,6 +1442,21 @@ function readObjectArray(
   }
 
   return value as Record<string, unknown>[];
+}
+
+function readObject(
+  value: unknown,
+  label: string,
+): Record<string, unknown> {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    Array.isArray(value)
+  ) {
+    throw new Error(`${label} response was not an object`);
+  }
+
+  return value as Record<string, unknown>;
 }
 
 function readPriorityLanes(value: unknown): Array<{ id: string }> {

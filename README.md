@@ -15,6 +15,7 @@ The current backend foundation provides:
 - A global NestJS authentication guard, with anonymous routes explicitly marked.
 - Better Auth's MongoDB adapter reusing Mongoose's native client and database.
 - Protected TMDB text search and normalized TV/movie detail endpoints.
+- An anonymous K-drama discovery feed with 24-hour MongoDB shelf caching and stale fallback.
 - Global NestJS request throttling with a tighter per-user TMDB search limit.
 - A personal library API backed by one shared media snapshot per TMDB title and separate
   owner-scoped user relationships.
@@ -23,6 +24,7 @@ The current backend foundation provides:
 - Owner-scoped custom category CRUD and multi-category assignment for personal library entries.
 - Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
 - Owner-scoped private wheels with weighted candidates, server-side selection, and spin history.
+- Public user profiles and protected username-prefix discovery without exposing email addresses.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
@@ -180,10 +182,27 @@ Search supports a required `q` value, `type=all|tv|movie`, and one-based `page`.
 responses omit person results, expose stable `tv:<tmdbId>` or `movie:<tmdbId>` identities, and retain
 both TMDB image paths and generated image URLs.
 
+The non-personal `GET /api/discovery/home` endpoint powers the K-drama portal. It returns a featured
+title and five shelves: popular K-dramas, currently airing K-dramas, top-rated K-dramas with at
+least 200 TMDB votes, K-dramas released within the last 90 days, and popular movies. The endpoint is
+intentionally anonymous and sends a one-hour public HTTP cache policy.
+
+Each shelf is normalized and cached independently in the `discoveryCache` MongoDB collection for
+24 hours. Cache documents remain for seven days so stale content can be served when TMDB fails.
+A short refresh lease prevents Cloud Run instances from routinely refreshing the same expired
+shelf concurrently. The TTL index deletes abandoned cache documents after their fallback window.
+
 TMDB search is limited to 20 requests per minute per authenticated Better Auth user. The global
 throttler also uses authenticated user IDs where available. Its unauthenticated fallback uses the
 direct socket address and deliberately ignores forwarded headers supplied through Firebase Hosting
 and Cloud Run.
+
+## Public profiles
+
+`GET /api/users/:username` is public and returns the user's ID, username, display username, public
+name, optional image, and join date. Email addresses and Better Auth internals are never returned.
+Authenticated users can call `GET /api/users/search?q=<prefix>&limit=<1-20>` to search normalized
+username prefixes; the current user is excluded from the results.
 
 ## Personal library
 
