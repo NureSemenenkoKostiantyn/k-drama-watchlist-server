@@ -152,6 +152,7 @@ export async function seedDevelopmentData(
   await seedFriendships(database, users, now);
 
   const media = await seedMedia(database, now);
+  await seedSuggestions(database, users, media, now);
   const categories = await seedCategories(
     database,
     users.demo._id,
@@ -464,6 +465,53 @@ async function seedMedia(
   }
 
   return seeded;
+}
+
+async function seedSuggestions(
+  database: Db,
+  users: {
+    demo: SeedUser;
+    acceptedFriend: SeedUser;
+  },
+  media: Record<string, SeedMedia>,
+  now: Date,
+): Promise<void> {
+  const goblin = requireSeeded(media, "tv:67915");
+  const crashLanding = requireSeeded(media, "tv:94796");
+  const suggestions = database.collection("suggestions");
+
+  await Promise.all([
+    suggestions.updateOne(
+      {
+        fromUserId: users.acceptedFriend._id,
+        toUserId: users.demo._id,
+        mediaId: goblin._id,
+      },
+      {
+        $setOnInsert: {
+          message: "The chemistry and fantasy story make this a must-watch.",
+          status: "pending",
+          createdAt: now,
+        },
+      },
+      { upsert: true },
+    ),
+    suggestions.updateOne(
+      {
+        fromUserId: users.demo._id,
+        toUserId: users.acceptedFriend._id,
+        mediaId: crashLanding._id,
+      },
+      {
+        $setOnInsert: {
+          message: "Try this when you want romance with a big adventure.",
+          status: "pending",
+          createdAt: now,
+        },
+      },
+      { upsert: true },
+    ),
+  ]);
 }
 
 async function seedCategories(

@@ -551,6 +551,235 @@ describe("application (e2e)", () => {
     });
   });
 
+  it("sends, accepts, and dismisses friend suggestions without duplicating library data", async () => {
+    await request(server).get("/api/suggestions").expect(401);
+
+    await request(server)
+      .post("/api/suggestions")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        username: "other_search_test",
+        mediaType: "tv",
+        tmdbId: 1,
+      })
+      .expect(403)
+      .expect({
+        error: {
+          code: "FRIENDSHIP_REQUIRED",
+          message: "You can suggest titles only to accepted friends.",
+        },
+      });
+
+    const friendRequestResponse = await request(server)
+      .post("/api/friends/request")
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "rate_limit_test" })
+      .expect(201);
+    const friendRequest = readObject(
+      friendRequestResponse.body as unknown,
+      "Suggestion friend request",
+    );
+    const friendshipId = readString(
+      friendRequest["id"],
+      "Suggestion friendship ID",
+    );
+
+    await request(server)
+      .post(`/api/friends/${friendshipId}/accept`)
+      .set("Cookie", rateLimitedCookie)
+      .expect(200);
+
+    const createResponse = await request(server)
+      .post("/api/suggestions")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        username: "rate_limit_test",
+        mediaType: "tv",
+        tmdbId: 1,
+        message: "You will love this one.",
+      })
+      .expect(201);
+    const created = readObject(
+      createResponse.body as unknown,
+      "Created suggestion",
+    );
+    const suggestionId = readString(
+      created["id"],
+      "Suggestion ID",
+    );
+
+    expect(created).toMatchObject({
+      status: "pending",
+      direction: "sent",
+      message: "You will love this one.",
+      user: { username: "rate_limit_test" },
+      media: { id: "tv:1", title: "Goblin" },
+    });
+    expect(created["user"]).not.toHaveProperty("email");
+
+    const resendResponse = await request(server)
+      .post("/api/suggestions")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        username: "rate_limit_test",
+        mediaType: "tv",
+        tmdbId: 1,
+        message: "Actually, start with the character chemistry.",
+      })
+      .expect(201);
+    expect(resendResponse.body).toMatchObject({
+      id: suggestionId,
+      status: "pending",
+      message: "Actually, start with the character chemistry.",
+    });
+
+    const overviewResponse = await request(server)
+      .get("/api/suggestions")
+      .set("Cookie", rateLimitedCookie)
+      .expect(200);
+    const overview = readObject(
+      overviewResponse.body as unknown,
+      "Suggestion overview",
+    );
+    const receivedSuggestions = readObjectArray(
+      overview["received"],
+      "Received suggestions",
+    );
+    expect(receivedSuggestions).toHaveLength(1);
+    expect(receivedSuggestions[0]).toMatchObject({
+      id: suggestionId,
+      message: "Actually, start with the character chemistry.",
+    });
+
+    const clearMessageResponse = await request(server)
+      .post("/api/suggestions")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        username: "rate_limit_test",
+        mediaType: "tv",
+        tmdbId: 1,
+      })
+      .expect(201);
+    expect(clearMessageResponse.body).toMatchObject({
+      id: suggestionId,
+      status: "pending",
+    });
+    expect(clearMessageResponse.body).not.toHaveProperty("message");
+
+    await request(server)
+      .post(`/api/suggestions/${suggestionId}/accept`)
+      .set("Cookie", otherUserCookie)
+      .expect(404);
+
+    await request(server)
+      .post(`/api/suggestions/${suggestionId}/accept`)
+      .set("Cookie", rateLimitedCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          status: "accepted",
+          direction: "received",
+          user: { username: "search_test" },
+        });
+      });
+
+    const firstLibraryResponse = await request(server)
+      .get("/api/library")
+      .set("Cookie", rateLimitedCookie)
+      .expect(200);
+    const firstLibrary = readObjectArray(
+      firstLibraryResponse.body as unknown,
+      "Suggested library",
+    );
+    const suggestedEntry = readLibraryEntry(firstLibrary[0]);
+    expect(firstLibrary).toHaveLength(1);
+    expect(firstLibrary[0]).toMatchObject({
+      status: "to_watch",
+      media: { id: "tv:1" },
+    });
+
+    await request(server)
+      .patch(`/api/library/${suggestedEntry.id}/status`)
+      .set("Cookie", rateLimitedCookie)
+      .send({ status: "watching" })
+      .expect(200);
+
+    const secondSuggestionResponse = await request(server)
+      .post("/api/suggestions")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        username: "rate_limit_test",
+        mediaType: "tv",
+        tmdbId: 1,
+      })
+      .expect(201);
+    const secondSuggestion = readObject(
+      secondSuggestionResponse.body as unknown,
+      "Second suggestion",
+    );
+    const secondSuggestionId = readString(
+      secondSuggestion["id"],
+      "Second suggestion ID",
+    );
+
+    await request(server)
+      .post(`/api/suggestions/${secondSuggestionId}/accept`)
+      .set("Cookie", rateLimitedCookie)
+      .expect(200);
+
+    const preservedLibraryResponse = await request(server)
+      .get("/api/library")
+      .set("Cookie", rateLimitedCookie)
+      .expect(200);
+    const preservedLibrary = readObjectArray(
+      preservedLibraryResponse.body as unknown,
+      "Preserved suggested library",
+    );
+    expect(preservedLibrary).toHaveLength(1);
+    expect(preservedLibrary[0]).toMatchObject({
+      id: suggestedEntry.id,
+      status: "watching",
+    });
+
+    const dismissResponse = await request(server)
+      .post("/api/suggestions")
+      .set("Cookie", authenticatedCookie)
+      .send({
+        username: "rate_limit_test",
+        mediaType: "tv",
+        tmdbId: 1,
+      })
+      .expect(201);
+    const dismissSuggestion = readObject(
+      dismissResponse.body as unknown,
+      "Dismissed suggestion",
+    );
+    const dismissSuggestionId = readString(
+      dismissSuggestion["id"],
+      "Dismissed suggestion ID",
+    );
+
+    await request(server)
+      .post(`/api/suggestions/${dismissSuggestionId}/dismiss`)
+      .set("Cookie", rateLimitedCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          status: "dismissed",
+        });
+      });
+
+    await request(server)
+      .delete(`/api/library/${suggestedEntry.id}`)
+      .set("Cookie", rateLimitedCookie)
+      .expect(204);
+
+    await request(server)
+      .delete(`/api/friends/${friendshipId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+  });
+
   it("shares one media snapshot while isolating each user's library entry", async () => {
     const firstAdd = await request(server)
       .post("/api/library")

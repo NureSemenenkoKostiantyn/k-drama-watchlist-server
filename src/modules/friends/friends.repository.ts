@@ -52,6 +52,26 @@ export class FriendsRepository {
     return mapFriendshipDocument(document);
   }
 
+  async existsAcceptedBetween(
+    firstUserId: Types.ObjectId,
+    secondUserId: Types.ObjectId,
+  ): Promise<boolean> {
+    const friendship = await this.friendshipModel.exists({
+      status: "accepted",
+      $or: [
+        {
+          requesterId: firstUserId,
+          recipientId: secondUserId,
+        },
+        {
+          requesterId: secondUserId,
+          recipientId: firstUserId,
+        },
+      ],
+    });
+    return friendship !== null;
+  }
+
   async accept(
     friendshipId: Types.ObjectId,
     recipientId: Types.ObjectId,

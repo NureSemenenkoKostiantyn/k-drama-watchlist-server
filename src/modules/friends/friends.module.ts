@@ -14,5 +14,6 @@ import { FriendsService } from "./friends.service";
     FriendsRepository,
     FriendsService,
   ],
+  exports: [FriendsService],
 })
 export class FriendsModule {}
