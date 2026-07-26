@@ -38,6 +38,23 @@ export class FriendsRepository {
     return documents.map(mapFriendshipDocument);
   }
 
+  async findAcceptedCounterpartIds(
+    userId: Types.ObjectId,
+  ): Promise<Types.ObjectId[]> {
+    const documents = await this.friendshipModel
+      .find({
+        status: "accepted",
+        $or: [{ requesterId: userId }, { recipientId: userId }],
+      })
+      .exec();
+
+    return documents.map((document) =>
+      document.requesterId.equals(userId)
+        ? document.recipientId
+        : document.requesterId,
+    );
+  }
+
   async create(
     requesterId: Types.ObjectId,
     recipientId: Types.ObjectId,

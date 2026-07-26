@@ -88,6 +88,23 @@ export class LibraryRepository {
     return document ? mapUserMediaDocument(document) : null;
   }
 
+  async findByUsersAndMedia(
+    userIds: Types.ObjectId[],
+    mediaId: Types.ObjectId,
+  ): Promise<StoredUserMedia[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const documents = await this.userMediaModel
+      .find({
+        userId: { $in: userIds },
+        mediaId,
+      })
+      .exec();
+    return documents.map(mapUserMediaDocument);
+  }
+
   async create(
     userId: Types.ObjectId,
     mediaId: Types.ObjectId,

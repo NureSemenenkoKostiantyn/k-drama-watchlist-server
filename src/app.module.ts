@@ -24,6 +24,8 @@ import { LibraryModule } from "./modules/library/library.module";
 import { MediaModule } from "./modules/media/media.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { PriorityModule } from "./modules/priority/priority.module";
+import { ProfilesModule } from "./modules/profiles/profiles.module";
+import { SettingsModule } from "./modules/settings/settings.module";
 import { SuggestionsModule } from "./modules/suggestions/suggestions.module";
 import { UsersModule } from "./modules/users/users.module";
 import { WheelsModule } from "./modules/wheels/wheels.module";
@@ -80,6 +82,8 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     LibraryModule,
     NotificationsModule,
     PriorityModule,
+    ProfilesModule,
+    SettingsModule,
     SuggestionsModule,
     UsersModule,
     WheelsModule,

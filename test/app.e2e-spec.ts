@@ -133,23 +133,49 @@ describe("application (e2e)", () => {
             },
           ],
         }),
-        getDetails: jest.fn<TmdbClient["getDetails"]>().mockResolvedValue({
-          id: 1,
-          name: "Goblin",
-          original_name: "도깨비",
-          origin_country: ["KR"],
-          genres: [{ id: 18 }],
-          number_of_episodes: 16,
-          number_of_seasons: 1,
-          seasons: [
-            {
-              id: 10,
-              season_number: 1,
-              name: "Season 1",
-              episode_count: 16,
-            },
-          ],
-        }),
+        getDetails: jest
+          .fn<TmdbClient["getDetails"]>()
+          .mockImplementation((_mediaType, tmdbId) =>
+            Promise.resolve(
+              tmdbId === 2
+                ? {
+                    id: 2,
+                    name: "Another show",
+                    original_name: "Another show",
+                    origin_country: ["US"],
+                    genres: [{ id: 18 }],
+                    first_air_date: "2020-01-15",
+                    number_of_episodes: 10,
+                    number_of_seasons: 1,
+                    seasons: [
+                      {
+                        id: 20,
+                        season_number: 1,
+                        name: "Season 1",
+                        episode_count: 10,
+                      },
+                    ],
+                  }
+                : {
+                    id: 1,
+                    name: "Goblin",
+                    original_name: "도깨비",
+                    origin_country: ["KR"],
+                    genres: [{ id: 18 }],
+                    first_air_date: "2016-12-02",
+                    number_of_episodes: 16,
+                    number_of_seasons: 1,
+                    seasons: [
+                      {
+                        id: 10,
+                        season_number: 1,
+                        name: "Season 1",
+                        episode_count: 16,
+                      },
+                    ],
+                  },
+            ),
+          ),
         discover: tmdbDiscover,
       })
       .overrideProvider(TransactionalEmailService)
@@ -1414,6 +1440,325 @@ describe("application (e2e)", () => {
     expect(
       await database.collection("userMedia").countDocuments(),
     ).toBe(1);
+  });
+
+  it("shares safe media context only with accepted friends", async () => {
+    await request(server)
+      .get("/api/media/tv/1/friend-context")
+      .expect(401);
+
+    const otherLibraryResponse = await request(server)
+      .get("/api/library")
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+    const [otherEntryValue] = readObjectArray(
+      otherLibraryResponse.body as unknown,
+      "Other user library",
+    );
+    const otherEntry = readLibraryEntry(otherEntryValue);
+
+    await request(server)
+      .patch(`/api/library/${otherEntry.id}/rating`)
+      .set("Cookie", otherUserCookie)
+      .send({ rating: 8.5 })
+      .expect(200);
+
+    await request(server)
+      .patch(`/api/library/${otherEntry.id}`)
+      .set("Cookie", otherUserCookie)
+      .send({ description: "Private friend notes" })
+      .expect(200);
+
+    await request(server)
+      .get("/api/media/tv/1/friend-context")
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect({ friends: [] });
+
+    const friendRequestResponse = await request(server)
+      .post("/api/friends/request")
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "other_search_test" })
+      .expect(201);
+    const friendshipId = readString(
+      readObject(
+        friendRequestResponse.body as unknown,
+        "Friend context request",
+      )["id"],
+      "Friend context request ID",
+    );
+
+    await request(server)
+      .post(`/api/friends/${friendshipId}/accept`)
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+
+    const contextResponse = await request(server)
+      .get("/api/media/tv/1/friend-context")
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const context = readObject(
+      contextResponse.body as unknown,
+      "Media friend context",
+    );
+    const activities = readObjectArray(
+      context["friends"],
+      "Media friend activities",
+    );
+
+    expect(activities).toHaveLength(1);
+    expect(activities[0]).toMatchObject({
+      user: {
+        username: "other_search_test",
+        name: "Other Search Test",
+      },
+      status: "watching",
+      rating: 8.5,
+    });
+    expect(activities[0]).not.toHaveProperty("description");
+    expect(activities[0]).not.toHaveProperty("progress");
+    expect(activities[0]).not.toHaveProperty("categoryIds");
+    expect(activities[0]).not.toHaveProperty(
+      "playbackPreference",
+    );
+
+    await request(server)
+      .get("/api/media/tv/1/friend-context")
+      .set("Cookie", rateLimitedCookie)
+      .expect(200)
+      .expect({ friends: [] });
+
+    await request(server)
+      .delete(`/api/friends/${friendshipId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+  });
+
+  it("manages settings and enforces public library visibility", async () => {
+    await request(server).get("/api/settings").expect(401);
+    await request(server)
+      .patch("/api/settings")
+      .send({ libraryVisibility: "public" })
+      .expect(401);
+
+    await request(server)
+      .get("/api/settings")
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect({ libraryVisibility: "private" });
+
+    const friendRequestResponse = await request(server)
+      .post("/api/friends/request")
+      .set("Cookie", authenticatedCookie)
+      .send({ username: "other_search_test" })
+      .expect(201);
+    const friendshipId = readString(
+      readObject(
+        friendRequestResponse.body as unknown,
+        "Public library friend request",
+      )["id"],
+      "Public library friendship ID",
+    );
+
+    await request(server)
+      .post(`/api/friends/${friendshipId}/accept`)
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+
+    const secondLibraryEntry = readLibraryEntry(
+      (
+        await request(server)
+          .post("/api/library")
+          .set("Cookie", otherUserCookie)
+          .send({
+            mediaType: "tv",
+            tmdbId: 2,
+            status: "watched",
+          })
+          .expect(201)
+      ).body as unknown,
+    );
+    await request(server)
+      .patch(`/api/library/${secondLibraryEntry.id}/rating`)
+      .set("Cookie", otherUserCookie)
+      .send({ rating: 6 })
+      .expect(200);
+
+    await request(server)
+      .get("/api/users/other_search_test/library")
+      .set("Cookie", authenticatedCookie)
+      .expect(403)
+      .expect({
+        error: {
+          code: "LIBRARY_NOT_VISIBLE",
+          message: "This library is not available to you.",
+        },
+      });
+
+    await request(server)
+      .patch("/api/settings")
+      .set("Cookie", otherUserCookie)
+      .send({ libraryVisibility: "friends" })
+      .expect(200)
+      .expect({ libraryVisibility: "friends" });
+
+    const friendLibraryResponse = await request(server)
+      .get("/api/users/other_search_test/library")
+      .query({
+        status: "watching",
+        mediaType: "tv",
+        minRating: 8,
+        genreId: 18,
+        country: "kr",
+        yearFrom: 1900,
+        yearTo: 2100,
+        sort: "title_asc",
+        page: 1,
+        limit: 12,
+      })
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const friendLibrary = readObject(
+      friendLibraryResponse.body as unknown,
+      "Friend library",
+    );
+    const friendLibraryItems = readObjectArray(
+      friendLibrary["items"],
+      "Friend library items",
+    );
+
+    expect(friendLibrary).toMatchObject({
+      user: { username: "other_search_test" },
+      visibility: "friends",
+      isOwner: false,
+      page: 1,
+      totalPages: 1,
+      totalResults: 1,
+    });
+    expect(friendLibraryItems[0]).toMatchObject({
+      status: "watching",
+      rating: 8.5,
+      media: {
+        id: "tv:1",
+        title: "Goblin",
+      },
+    });
+    expect(friendLibraryItems[0]).not.toHaveProperty("id");
+    expect(friendLibraryItems[0]).not.toHaveProperty("description");
+    expect(friendLibraryItems[0]).not.toHaveProperty("progress");
+    expect(friendLibraryItems[0]).not.toHaveProperty("categoryIds");
+    expect(friendLibraryItems[0]).not.toHaveProperty(
+      "playbackPreference",
+    );
+
+    const sortedLibraryResponse = await request(server)
+      .get("/api/users/other_search_test/library")
+      .query({ sort: "title_asc" })
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const sortedItems = readObjectArray(
+      readObject(
+        sortedLibraryResponse.body as unknown,
+        "Sorted friend library",
+      )["items"],
+      "Sorted friend library items",
+    );
+    expect(
+      sortedItems.map((item) => {
+        const media = readObject(
+          readObject(item, "Sorted friend library item")["media"],
+          "Sorted friend library media",
+        );
+        return readString(
+          media["title"],
+          "Sorted friend library title",
+        );
+      }),
+    ).toEqual(["Another show", "Goblin"]);
+
+    await request(server)
+      .get("/api/users/other_search_test/library")
+      .query({ yearFrom: 2017, yearTo: 2020 })
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          totalResults: 1,
+          totalPages: 1,
+          items: [{ media: { title: "Another show" } }],
+        });
+      });
+
+    await request(server)
+      .get("/api/users/other_search_test/library")
+      .query({ yearFrom: 2025, yearTo: 2020 })
+      .set("Cookie", authenticatedCookie)
+      .expect(400)
+      .expect({
+        error: {
+          code: "INVALID_YEAR_RANGE",
+          message:
+            "The starting year cannot be after the ending year.",
+        },
+      });
+
+    await request(server)
+      .get("/api/users/other_search_test/library")
+      .expect(403);
+    await request(server)
+      .get("/api/users/other_search_test/library")
+      .set("Cookie", rateLimitedCookie)
+      .expect(403);
+
+    await request(server)
+      .patch("/api/settings")
+      .set("Cookie", otherUserCookie)
+      .send({ libraryVisibility: "public" })
+      .expect(200);
+
+    await request(server)
+      .get("/api/users/other_search_test/library")
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          visibility: "public",
+          isOwner: false,
+          totalResults: 2,
+        });
+      });
+
+    await request(server)
+      .patch("/api/settings")
+      .set("Cookie", otherUserCookie)
+      .send({ libraryVisibility: "private" })
+      .expect(200);
+
+    await request(server)
+      .get("/api/users/other_search_test/library")
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          visibility: "private",
+          isOwner: true,
+        });
+      });
+
+    await request(server)
+      .patch("/api/settings")
+      .set("Cookie", otherUserCookie)
+      .send({ libraryVisibility: "everyone" })
+      .expect(400);
+
+    await request(server)
+      .delete(`/api/library/${secondLibraryEntry.id}`)
+      .set("Cookie", otherUserCookie)
+      .expect(204);
+
+    await request(server)
+      .delete(`/api/friends/${friendshipId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
   });
 
   it("manages and spins an owner-only private wheel", async () => {

@@ -16,6 +16,6 @@ import { USER_MEDIA_MODEL } from "./user-media-model.provider";
     LibraryRepository,
     LibraryService,
   ],
-  exports: [USER_MEDIA_MODEL],
+  exports: [USER_MEDIA_MODEL, LibraryRepository],
 })
 export class LibraryModule {}
