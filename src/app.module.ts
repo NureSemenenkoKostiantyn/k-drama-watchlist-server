@@ -21,6 +21,7 @@ import { HealthModule } from "./modules/health/health.module";
 import { LibraryModule } from "./modules/library/library.module";
 import { MediaModule } from "./modules/media/media.module";
 import { PriorityModule } from "./modules/priority/priority.module";
+import { UsersModule } from "./modules/users/users.module";
 import { WheelsModule } from "./modules/wheels/wheels.module";
 
 @Module({
@@ -72,6 +73,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     MediaModule,
     LibraryModule,
     PriorityModule,
+    UsersModule,
     WheelsModule,
   ],
   providers: [

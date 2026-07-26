@@ -156,6 +156,21 @@ describe("application (e2e)", () => {
       "Other Search Test",
       emailService,
     );
+    await setTestUsername(
+      server,
+      authenticatedCookie,
+      "search_test",
+    );
+    await setTestUsername(
+      server,
+      rateLimitedCookie,
+      "rate_limit_test",
+    );
+    await setTestUsername(
+      server,
+      otherUserCookie,
+      "other_search_test",
+    );
   });
 
   afterAll(async () => {
@@ -199,6 +214,61 @@ describe("application (e2e)", () => {
         message: "Authentication is required.",
       },
     });
+  });
+
+  it("finds public profiles without exposing private auth fields", async () => {
+    const profileResponse = await request(server)
+      .get("/api/users/other_search_test")
+      .expect(200);
+
+    expect(profileResponse.body).toMatchObject({
+      username: "other_search_test",
+      displayUsername: "other_search_test",
+      name: "Other Search Test",
+    });
+    expect(profileResponse.body).toHaveProperty("id");
+    expect(profileResponse.body).toHaveProperty("joinedAt");
+    expect(profileResponse.body).not.toHaveProperty("email");
+    expect(profileResponse.body).not.toHaveProperty("emailVerified");
+
+    await request(server)
+      .get("/api/users/search")
+      .query({ q: "other" })
+      .expect(401);
+
+    const searchResponse = await request(server)
+      .get("/api/users/search")
+      .query({ q: "other", limit: 5 })
+      .set("Cookie", authenticatedCookie)
+      .expect(200);
+    const searchResults = readObjectArray(
+      searchResponse.body as unknown,
+      "User search",
+    );
+
+    expect(searchResults).toHaveLength(1);
+    expect(searchResults[0]).toMatchObject({
+      username: "other_search_test",
+      name: "Other Search Test",
+    });
+    expect(searchResults[0]).not.toHaveProperty("email");
+
+    await request(server)
+      .get("/api/users/search")
+      .query({ q: "s" })
+      .set("Cookie", authenticatedCookie)
+      .expect(400);
+
+    await request(server)
+      .get("/api/users/missing_user")
+      .set("Cookie", authenticatedCookie)
+      .expect(404)
+      .expect({
+        error: {
+          code: "NOT_FOUND",
+          message: "User not found.",
+        },
+      });
   });
 
   it("searches TMDB through the protected normalized API", async () => {
@@ -1214,6 +1284,19 @@ async function registerTestUser(
   return readCookie(response);
 }
 
+async function setTestUsername(
+  server: Server,
+  cookie: string,
+  username: string,
+): Promise<void> {
+  await request(server)
+    .post("/api/auth/update-user")
+    .set("Cookie", cookie)
+    .set("Origin", "http://localhost:4200")
+    .send({ username })
+    .expect(200);
+}
+
 async function followAuthenticationLink(
   server: Server,
   actionUrl: string,
@@ -1276,6 +1359,22 @@ function readCategory(value: unknown): {
   }
 
   return { id: value.id };
+}
+
+function readObjectArray(
+  value: unknown,
+  label: string,
+): Record<string, unknown>[] {
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (item) => typeof item === "object" && item !== null,
+    )
+  ) {
+    throw new Error(`${label} response was not an object array`);
+  }
+
+  return value as Record<string, unknown>[];
 }
 
 function readPriorityLanes(value: unknown): Array<{ id: string }> {
