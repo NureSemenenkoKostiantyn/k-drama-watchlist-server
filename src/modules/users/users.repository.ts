@@ -39,30 +39,74 @@ export class UsersRepository {
     return user && hasUsername(user) ? mapPublicUser(user) : null;
   }
 
-  async searchByUsername(
-    normalizedPrefix: string,
+  async findSearchCandidates(
+    query: string,
     excludedUserId: ObjectId,
-    limit: number,
+    candidateLimit: number,
   ): Promise<StoredPublicUser[]> {
     const users = await this.getUsersCollection();
-    const prefix = new RegExp(`^${escapeRegularExpression(normalizedPrefix)}`);
-    const results = await users
+    const directPattern = new RegExp(
+      escapeRegularExpression(query),
+      "i",
+    );
+    const directResults = await users
       .find(
         {
           _id: { $ne: excludedUserId },
-          username: { $regex: prefix },
+          username: { $type: "string" },
+          $or: [
+            { username: { $regex: directPattern } },
+            { name: { $regex: directPattern } },
+          ],
         },
         { projection: publicUserProjection },
       )
       .sort({ username: 1 })
-      .limit(limit)
+      .limit(candidateLimit)
+      .toArray();
+    const remainingCandidateCount =
+      candidateLimit - directResults.length;
+
+    if (remainingCandidateCount <= 0) {
+      return directResults.filter(hasUsername).map(mapPublicUser);
+    }
+
+    const fuzzyResults = await users
+      .find(
+        {
+          _id: {
+            $ne: excludedUserId,
+            $nin: directResults.map((user) => user._id),
+          },
+          username: { $type: "string" },
+        },
+        { projection: publicUserProjection },
+      )
+      .sort({ createdAt: -1, username: 1 })
+      .limit(remainingCandidateCount)
       .toArray();
 
-    return results
-      .filter(
-        hasUsername,
-      )
+    return [...directResults, ...fuzzyResults]
+      .filter(hasUsername)
       .map(mapPublicUser);
+  }
+
+  async findByIds(userIds: ObjectId[]): Promise<StoredPublicUser[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const users = await this.getUsersCollection();
+    const results = await users
+      .find(
+        {
+          _id: { $in: userIds },
+        },
+        { projection: publicUserProjection },
+      )
+      .toArray();
+
+    return results.filter(hasUsername).map(mapPublicUser);
   }
 
   private async getUsersCollection(): Promise<

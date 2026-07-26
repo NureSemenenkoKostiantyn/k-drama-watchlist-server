@@ -1,29 +1,15 @@
 import {
   Transform,
   type TransformFnParams,
-  Type,
 } from "class-transformer";
-import {
-  IsInt,
-  IsString,
-  Length,
-  Matches,
-  Max,
-  Min,
-} from "class-validator";
+import { IsString, Length, Matches } from "class-validator";
 
-export class SearchUsersQuery {
+export class CreateFriendRequestDto {
   @Transform(trimString)
   @IsString()
-  @Length(2, 50)
-  @Matches(/^[\p{L}\p{M}\p{N} ._'’-]+$/u)
-  q!: string;
-
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(20)
-  limit = 10;
+  @Length(3, 30)
+  @Matches(/^[a-zA-Z0-9_.]+$/)
+  username!: string;
 }
 
 function trimString(params: TransformFnParams): unknown {

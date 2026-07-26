@@ -3,10 +3,13 @@ import { ObjectId } from "mongodb";
 
 import { ApiException } from "../../common/errors/api-exception";
 import { type PublicUserProfileResponse } from "../../common/types/user.types";
+import { rankUserSearchCandidates } from "./user-search";
 import {
   type StoredPublicUser,
   UsersRepository,
 } from "./users.repository";
+
+const SEARCH_CANDIDATE_LIMIT = 500;
 
 @Injectable()
 export class UsersService {
@@ -17,17 +20,25 @@ export class UsersService {
     query: string,
     limit: number,
   ): Promise<PublicUserProfileResponse[]> {
-    const users = await this.usersRepository.searchByUsername(
-      query.toLocaleLowerCase(),
+    const users = await this.usersRepository.findSearchCandidates(
+      query,
       toObjectId(authenticatedUserId),
-      limit,
+      SEARCH_CANDIDATE_LIMIT,
     );
-    return users.map(toPublicUserProfile);
+    return rankUserSearchCandidates(users, query, limit).map(
+      ({ user }) => toPublicUserProfile(user),
+    );
   }
 
   async getByUsername(
     username: string,
   ): Promise<PublicUserProfileResponse> {
+    return toPublicUserProfile(
+      await this.resolveByUsername(username),
+    );
+  }
+
+  async resolveByUsername(username: string): Promise<StoredPublicUser> {
     const user = await this.usersRepository.findByUsername(
       username.toLocaleLowerCase(),
     );
@@ -40,11 +51,15 @@ export class UsersService {
       });
     }
 
-    return toPublicUserProfile(user);
+    return user;
+  }
+
+  findStoredByIds(userIds: ObjectId[]): Promise<StoredPublicUser[]> {
+    return this.usersRepository.findByIds(userIds);
   }
 }
 
-function toPublicUserProfile(
+export function toPublicUserProfile(
   user: StoredPublicUser,
 ): PublicUserProfileResponse {
   return {

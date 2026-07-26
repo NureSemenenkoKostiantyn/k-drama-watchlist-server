@@ -24,13 +24,15 @@ The current backend foundation provides:
 - Owner-scoped custom category CRUD and multi-category assignment for personal library entries.
 - Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
 - Owner-scoped private wheels with weighted candidates, server-side selection, and spin history.
-- Public user profiles and protected username-prefix discovery without exposing email addresses.
+- Public user profiles and protected weighted name/username discovery without exposing email
+  addresses.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Social feature modules are intentionally deferred to later vertical slices. Authentication emails
-are delivered through Resend.
+Public profiles, username discovery, and friendship management are implemented as the first social
+vertical slices. Suggestions, notifications, and collaborative resources remain deferred.
+Authentication emails are delivered through Resend.
 
 ## Prerequisites
 
@@ -52,6 +54,19 @@ This requires Docker Compose 2.22 or newer. It builds the `development` target i
 waits for MongoDB to become healthy, serves the API at `http://localhost:8080`, and synchronizes
 changes under `src` into the running watch process. Stop the stack with `docker compose down`;
 local MongoDB data remains in the `drama-watch_mongodb_data` volume.
+
+Populate the local database with repeatable demo data after the stack is running:
+
+```bash
+docker compose exec api npm run seed:dev
+```
+
+The seed creates the verified demo account `demo@drama-watch.local` with password
+`DramaWatch1!`, three example friendship states, four shared media records, a personal library,
+categories, and default priority lanes. It uses upserts, does not clear existing records, and is
+never run automatically. The command refuses to run unless `NODE_ENV=development`, the database is
+the local `drama_watch` database, and MongoDB is reached through a loopback or Compose hostname; it
+cannot target MongoDB Atlas.
 
 To run only the API directly on the host, follow the steps below.
 
@@ -122,6 +137,7 @@ a sender accepted by the configured Resend account.
 | `npm test` | Run Jest unit tests. |
 | `npm run test:watch` | Run unit tests in watch mode. |
 | `npm run test:e2e` | Run Supertest against a NestJS application and the `drama_watch_test` database. |
+| `npm run seed:dev` | Build and upsert guarded mock data into the local development database. |
 
 Start the Compose MongoDB service before running `npm run test:e2e` from the host. The suite refuses
 to clear any database whose name is not exactly `drama_watch_test`.
@@ -201,8 +217,33 @@ and Cloud Run.
 
 `GET /api/users/:username` is public and returns the user's ID, username, display username, public
 name, optional image, and join date. Email addresses and Better Auth internals are never returned.
-Authenticated users can call `GET /api/users/search?q=<prefix>&limit=<1-20>` to search normalized
-username prefixes; the current user is excluded from the results.
+Authenticated users can call `GET /api/users/search?q=<query>&limit=<1-20>` to search normalized
+usernames and public names. Results rank exact usernames, username prefixes, exact names, name-word
+prefixes, substrings, and bounded typo-tolerant matches in that order. Punctuation, casing, and
+accents are normalized before scoring. The current user is excluded, and email addresses are never
+searched or returned. Candidate retrieval is capped before in-process similarity scoring to keep
+each request bounded.
+
+## Friendships
+
+Authenticated users can manage friendships through:
+
+```text
+GET    /api/friends
+POST   /api/friends/request
+POST   /api/friends/:friendshipId/accept
+POST   /api/friends/:friendshipId/reject
+DELETE /api/friends/:friendshipId
+```
+
+The list response separates accepted friends, requests received by the current user, and requests
+sent by the current user. Requests target a normalized username. Only the recipient can accept or
+reject a pending request, while either participant can remove an accepted friendship or cancel a
+pending request. All authorization comes from the Better Auth session.
+
+Each friendship stores a canonical pair key with a unique index. This prevents both duplicate and
+reversed duplicate relationships even when two users send requests concurrently. Friendship
+responses include only the public user profile contract and never expose email addresses.
 
 ## Personal library
 

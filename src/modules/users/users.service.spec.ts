@@ -10,11 +10,11 @@ import { UsersService } from "./users.service";
 describe("UsersService", () => {
   const findByUsername =
     jest.fn<UsersRepository["findByUsername"]>();
-  const searchByUsername =
-    jest.fn<UsersRepository["searchByUsername"]>();
+  const findSearchCandidates =
+    jest.fn<UsersRepository["findSearchCandidates"]>();
   const service = new UsersService({
     findByUsername,
-    searchByUsername,
+    findSearchCandidates,
   } as unknown as UsersRepository);
   const authenticatedUserId = new ObjectId();
   const joinedAt = new Date("2026-07-20T10:00:00.000Z");
@@ -45,13 +45,13 @@ describe("UsersService", () => {
     expect(findByUsername).toHaveBeenCalledWith("dahyun.fan");
   });
 
-  it("searches normalized usernames and excludes the current user", async () => {
-    searchByUsername.mockResolvedValue([user]);
+  it("returns ranked public search results with match context", async () => {
+    findSearchCandidates.mockResolvedValue([user]);
 
     await expect(
       service.search(
         authenticatedUserId.toHexString(),
-        "DAH",
+        "Dahyun",
         10,
       ),
     ).resolves.toEqual([
@@ -63,10 +63,10 @@ describe("UsersService", () => {
         joinedAt: joinedAt.toISOString(),
       },
     ]);
-    expect(searchByUsername).toHaveBeenCalledWith(
-      "dah",
+    expect(findSearchCandidates).toHaveBeenCalledWith(
+      "Dahyun",
       authenticatedUserId,
-      10,
+      500,
     );
   });
 
