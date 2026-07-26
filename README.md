@@ -26,12 +26,13 @@ The current backend foundation provides:
 - Owner-scoped private wheels with weighted candidates, server-side selection, and spin history.
 - Public user profiles and protected weighted name/username discovery without exposing email
   addresses.
+- Friend-only title suggestions with transactional acceptance into the recipient's library.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
-Public profiles, username discovery, and friendship management are implemented as the first social
-vertical slices. Suggestions, notifications, and collaborative resources remain deferred.
+Public profiles, username discovery, friendship management, and friend suggestions are implemented
+as the first social vertical slices. Notifications and collaborative resources remain deferred.
 Authentication emails are delivered through Resend.
 
 ## Prerequisites
@@ -62,11 +63,11 @@ docker compose exec api npm run seed:dev
 ```
 
 The seed creates the verified demo account `demo@drama-watch.local` with password
-`DramaWatch1!`, three example friendship states, four shared media records, a personal library,
-categories, and default priority lanes. It uses upserts, does not clear existing records, and is
-never run automatically. The command refuses to run unless `NODE_ENV=development`, the database is
-the local `drama_watch` database, and MongoDB is reached through a loopback or Compose hostname; it
-cannot target MongoDB Atlas.
+`DramaWatch1!`, three example friendship states, received and sent suggestions, four shared media
+records, a personal library, categories, and default priority lanes. It uses upserts, does not clear
+existing records, and is never run automatically. The command refuses to run unless
+`NODE_ENV=development`, the database is the local `drama_watch` database, and MongoDB is reached
+through a loopback or Compose hostname; it cannot target MongoDB Atlas.
 
 To run only the API directly on the host, follow the steps below.
 
@@ -244,6 +245,30 @@ pending request. All authorization comes from the Better Auth session.
 Each friendship stores a canonical pair key with a unique index. This prevents both duplicate and
 reversed duplicate relationships even when two users send requests concurrently. Friendship
 responses include only the public user profile contract and never expose email addresses.
+
+## Suggestions
+
+Authenticated users can manage recommendations through:
+
+```text
+GET  /api/suggestions
+POST /api/suggestions
+POST /api/suggestions/:suggestionId/accept
+POST /api/suggestions/:suggestionId/dismiss
+```
+
+A suggestion targets an accepted friend by username and identifies a title by TMDB media type and
+ID. The backend resolves or creates the one shared media snapshot before storing its ObjectId.
+Resending the same title while its suggestion is pending replaces the existing message instead of
+creating a duplicate card. Sending it again after acceptance or dismissal creates a new history
+entry. Listing returns separate received and sent arrays with public user data and normalized media
+details.
+
+Only the recipient can accept or dismiss a pending suggestion. Acceptance creates a `to_watch`
+entry only when the title is absent, preserves every field of an existing personal entry, and marks
+the suggestion accepted. Those writes run in one transaction on production MongoDB Atlas; local and
+test MongoDB execute the same combined operation without a transaction. Dismissal never changes the
+library.
 
 ## Personal library
 

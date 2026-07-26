@@ -103,6 +103,16 @@ export class FriendsService {
     }
   }
 
+  areAcceptedFriends(
+    firstUserId: Types.ObjectId,
+    secondUserId: Types.ObjectId,
+  ): Promise<boolean> {
+    return this.friendsRepository.existsAcceptedBetween(
+      firstUserId,
+      secondUserId,
+    );
+  }
+
   async accept(
     authenticatedUserId: string,
     friendshipId: string,
