@@ -2110,6 +2110,264 @@ describe("application (e2e)", () => {
     );
   });
 
+  it("shares an ordered private list through a one-time editor invitation", async () => {
+    const firstMedia = readObject(
+      (
+        await request(server)
+          .get("/api/media/tv/1")
+          .set("Cookie", authenticatedCookie)
+          .expect(200)
+      ).body as unknown,
+      "First shared-list media",
+    );
+    const secondMedia = readObject(
+      (
+        await request(server)
+          .get("/api/media/tv/2")
+          .set("Cookie", authenticatedCookie)
+          .expect(200)
+      ).body as unknown,
+      "Second shared-list media",
+    );
+    const list = readObject(
+      (
+        await request(server)
+          .post("/api/lists")
+          .set("Cookie", authenticatedCookie)
+          .send({ title: "Weekend dramas", description: "Watch together" })
+          .expect(201)
+      ).body as unknown,
+      "Shared list",
+    );
+    const listId = readString(list["id"], "Shared-list ID");
+
+    await request(server)
+      .get(`/api/lists/${listId}`)
+      .set("Cookie", otherUserCookie)
+      .expect(404);
+
+    const invite = readObject(
+      (
+        await request(server)
+          .post(`/api/lists/${listId}/invites`)
+          .set("Cookie", authenticatedCookie)
+          .send({ role: "editor" })
+          .expect(201)
+      ).body as unknown,
+      "Shared-list invite",
+    );
+    const acceptUrl = readString(
+      invite["acceptUrl"],
+      "Shared-list invitation URL",
+    );
+    const token = new URL(acceptUrl).pathname.split("/").at(-1);
+    expect(token).toHaveLength(43);
+
+    await request(server)
+      .post(`/api/list-invites/${token}/accept`)
+      .set("Cookie", otherUserCookie)
+      .expect(201)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          id: listId,
+          role: "editor",
+          members: [
+            { role: "owner", user: { username: "search_test" } },
+            { role: "editor", user: { username: "other_search_test" } },
+          ],
+        });
+      });
+
+    await request(server)
+      .post(`/api/list-invites/${token}/accept`)
+      .set("Cookie", authenticatedCookie)
+      .expect(400)
+      .expect({
+        error: {
+          code: "INVITE_INVALID",
+          message: "This shared-list invitation is invalid or expired.",
+        },
+      });
+
+    const firstItem = readObject(
+      (
+        await request(server)
+          .post(`/api/lists/${listId}/items`)
+          .set("Cookie", otherUserCookie)
+          .send({
+            mediaId: readString(firstMedia["id"], "First media ID"),
+            note: "Start here",
+            groupStatus: "watching",
+            groupProgress: { currentSeason: 1, currentEpisode: 2 },
+          })
+          .expect(201)
+      ).body as unknown,
+      "First shared-list item",
+    );
+    const secondItem = readObject(
+      (
+        await request(server)
+          .post(`/api/lists/${listId}/items`)
+          .set("Cookie", authenticatedCookie)
+          .send({ mediaId: readString(secondMedia["id"], "Second media ID") })
+          .expect(201)
+      ).body as unknown,
+      "Second shared-list item",
+    );
+    const firstItemId = readString(firstItem["id"], "First item ID");
+    const secondItemId = readString(secondItem["id"], "Second item ID");
+
+    await request(server)
+      .post(`/api/lists/${listId}/items`)
+      .set("Cookie", otherUserCookie)
+      .send({ mediaId: readString(firstMedia["id"], "First media ID") })
+      .expect(409)
+      .expect({
+        error: {
+          code: "SHARED_LIST_ITEM_ALREADY_EXISTS",
+          message: "This title is already on the shared list.",
+        },
+      });
+
+    await request(server)
+      .post(`/api/lists/${listId}/reorder`)
+      .set("Cookie", otherUserCookie)
+      .send({ itemIds: [secondItemId, firstItemId] })
+      .expect(201)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject([
+          { id: secondItemId, position: 0 },
+          {
+            id: firstItemId,
+            position: 1,
+            note: "Start here",
+            groupStatus: "watching",
+            groupProgress: { currentSeason: 1, currentEpisode: 2 },
+          },
+        ]);
+      });
+
+    const comment = readObject(
+      (
+        await request(server)
+          .post(`/api/lists/${listId}/items/${firstItemId}/comments`)
+          .set("Cookie", authenticatedCookie)
+          .send({ body: "The ending is worth discussing.", hasSpoiler: true })
+          .expect(201)
+      ).body as unknown,
+      "Shared-list comment",
+    );
+    const commentId = readString(comment["id"], "Shared-list comment ID");
+    expect(comment).toMatchObject({
+      body: "The ending is worth discussing.",
+      hasSpoiler: true,
+      author: { username: "search_test" },
+    });
+
+    const reply = readObject(
+      (
+        await request(server)
+          .post(`/api/lists/${listId}/items/${firstItemId}/comments`)
+          .set("Cookie", otherUserCookie)
+          .send({ body: "I agree.", parentCommentId: commentId })
+          .expect(201)
+      ).body as unknown,
+      "Shared-list reply",
+    );
+    const replyId = readString(reply["id"], "Shared-list reply ID");
+
+    await request(server)
+      .patch(`/api/comments/${commentId}`)
+      .set("Cookie", otherUserCookie)
+      .send({ body: "Editors cannot edit another author." })
+      .expect(403);
+
+    await request(server)
+      .delete(`/api/comments/${replyId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    await request(server)
+      .get(`/api/lists/${listId}/items/${firstItemId}/comments`)
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ id: commentId, hasSpoiler: true }),
+          ]),
+        );
+        const deletedReply = readObjectArray(
+          response.body as unknown,
+          "Shared-list comments",
+        ).find((entry) => entry["id"] === replyId);
+        expect(deletedReply).toMatchObject({
+          id: replyId,
+          isDeleted: true,
+          hasSpoiler: false,
+        });
+        expect(deletedReply).not.toHaveProperty("body");
+      });
+
+    await request(server)
+      .get("/api/notifications")
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        const items = readObjectArray(
+          readObject(response.body as unknown, "Comment notifications")["items"],
+          "Comment notification items",
+        );
+        const replyNotification = items.find(
+          (entry) => entry["type"] === "comment_reply",
+        );
+        expect(replyNotification).toMatchObject({
+          type: "comment_reply",
+          entityId: listId,
+        });
+        expect(
+          readObject(replyNotification?.["actor"], "Reply notification actor"),
+        ).toMatchObject({ username: "other_search_test" });
+      });
+
+    await request(server)
+      .patch(`/api/lists/${listId}`)
+      .set("Cookie", otherUserCookie)
+      .send({ title: "Editors cannot rename" })
+      .expect(403);
+
+    await request(server)
+      .get("/api/lists")
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              id: listId,
+              role: "editor",
+              itemCount: 2,
+            }),
+          ]),
+        );
+      });
+
+    await request(server)
+      .delete(`/api/lists/${listId}`)
+      .set("Cookie", otherUserCookie)
+      .expect(403);
+    await request(server)
+      .delete(`/api/lists/${listId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    const { database } = await databaseService.getNativeConnection();
+    expect(await database.collection("sharedLists").countDocuments()).toBe(0);
+    expect(await database.collection("sharedListItems").countDocuments()).toBe(0);
+    expect(await database.collection("sharedListInvites").countDocuments()).toBe(0);
+    expect(await database.collection("comments").countDocuments()).toBe(0);
+  });
+
   it("validates search queries and media identities", async () => {
     await request(server)
       .get("/api/search")
