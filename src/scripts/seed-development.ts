@@ -2,6 +2,7 @@ import { hashPassword as hashBetterAuthPassword } from "better-auth/crypto";
 import {
   type Collection,
   type Db,
+  type Document,
   type ObjectId,
   type WithId,
 } from "mongodb";
@@ -153,6 +154,7 @@ export async function seedDevelopmentData(
   await seedUserSettings(database, users, now);
 
   const media = await seedMedia(database, now);
+  await seedWheels(database, users, media, now);
   await seedSuggestions(database, users, media, now);
   await seedNotifications(database, users, media, now);
   const categories = await seedCategories(
@@ -550,6 +552,190 @@ async function seedSuggestions(
       { upsert: true },
     ),
   ]);
+}
+
+async function seedWheels(
+  database: Db,
+  users: {
+    demo: SeedUser;
+    acceptedFriend: SeedUser;
+  },
+  media: Record<string, SeedMedia>,
+  now: Date,
+): Promise<void> {
+  const goblin = requireSeeded(media, "tv:67915");
+  const crashLanding = requireSeeded(media, "tv:94796");
+  const attorneyWoo = requireSeeded(media, "tv:197067");
+  const wheels = database.collection("wheels");
+  const wheelItems = database.collection("wheelItems");
+  const wheelSpins = database.collection("wheelSpins");
+  const sharedWheel = await wheels.findOneAndUpdate(
+    {
+      ownerId: users.acceptedFriend._id,
+      title: "Weekend K-drama club",
+    },
+    {
+      $set: {
+        description: "A shared wheel where the demo account can edit and spin.",
+        visibility: "private",
+        selectionMode: "avoid_recent_winners",
+        members: [
+          { userId: users.acceptedFriend._id, role: "owner" },
+          { userId: users.demo._id, role: "editor" },
+        ],
+        updatedAt: now,
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true, returnDocument: "after" },
+  );
+  const ownedWheel = await wheels.findOneAndUpdate(
+    {
+      ownerId: users.demo._id,
+      title: "Comfort drama roulette",
+    },
+    {
+      $set: {
+        description: "An owned wheel with a friend invited as a viewer.",
+        visibility: "private",
+        selectionMode: "fully_random",
+        members: [
+          { userId: users.demo._id, role: "owner" },
+          { userId: users.acceptedFriend._id, role: "viewer" },
+        ],
+        updatedAt: now,
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true, returnDocument: "after" },
+  );
+
+  if (!sharedWheel || !ownedWheel) {
+    throw new Error("Development seed could not create shared wheels.");
+  }
+
+  const [sharedGoblin] = await Promise.all([
+    upsertWheelItem(
+      wheelItems,
+      sharedWheel._id,
+      goblin._id,
+      users.acceptedFriend._id,
+      0,
+      3,
+      now,
+    ),
+    upsertWheelItem(
+      wheelItems,
+      sharedWheel._id,
+      crashLanding._id,
+      users.demo._id,
+      1,
+      2,
+      now,
+    ),
+    upsertWheelItem(
+      wheelItems,
+      ownedWheel._id,
+      attorneyWoo._id,
+      users.demo._id,
+      0,
+      1,
+      now,
+    ),
+    upsertWheelItem(
+      wheelItems,
+      ownedWheel._id,
+      crashLanding._id,
+      users.demo._id,
+      1,
+      1,
+      now,
+    ),
+  ]);
+  const selectedAt = new Date(now.getTime() - 24 * 60 * 60 * 1_000);
+
+  await Promise.all([
+    wheelItems.updateOne(
+      { _id: sharedGoblin._id },
+      {
+        $set: {
+          lastSelectedAt: selectedAt,
+          selectionCount: 1,
+        },
+      },
+    ),
+    wheelSpins.updateOne(
+      {
+        wheelId: sharedWheel._id,
+        selectedItemId: sharedGoblin._id,
+        spunByUserId: users.acceptedFriend._id,
+      },
+      {
+        $setOnInsert: {
+          wheelId: sharedWheel._id,
+          selectedItemId: sharedGoblin._id,
+          spunByUserId: users.acceptedFriend._id,
+          createdAt: selectedAt,
+        },
+      },
+      { upsert: true },
+    ),
+    database.collection("notifications").updateOne(
+      {
+        userId: users.demo._id,
+        type: "wheel_invite",
+        entityId: sharedWheel._id,
+      },
+      {
+        $set: {
+          actorUserId: users.acceptedFriend._id,
+          createdAt: new Date(now.getTime() - 90 * 60 * 1_000),
+          isRead: false,
+        },
+        $unset: { readAt: 1 },
+        $setOnInsert: {
+          userId: users.demo._id,
+          type: "wheel_invite",
+          entityId: sharedWheel._id,
+        },
+      },
+      { upsert: true },
+    ),
+  ]);
+}
+
+async function upsertWheelItem(
+  collection: Collection,
+  wheelId: ObjectId,
+  mediaId: ObjectId,
+  addedByUserId: ObjectId,
+  position: number,
+  weight: number,
+  now: Date,
+): Promise<WithId<Document>> {
+  const item = await collection.findOneAndUpdate(
+    { wheelId, mediaId },
+    {
+      $set: {
+        addedByUserId,
+        position,
+        weight,
+        isEnabled: true,
+        updatedAt: now,
+      },
+      $setOnInsert: {
+        selectionCount: 0,
+        createdAt: now,
+      },
+    },
+    { upsert: true, returnDocument: "after" },
+  );
+
+  if (!item) {
+    throw new Error("Development seed could not create a wheel item.");
+  }
+
+  return item;
 }
 
 async function seedNotifications(

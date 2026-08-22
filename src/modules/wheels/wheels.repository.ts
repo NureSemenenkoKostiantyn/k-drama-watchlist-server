@@ -104,23 +104,24 @@ export class WheelsRepository {
     return this.connection.transaction((session) => work(session));
   }
 
-  async findAll(ownerId: Types.ObjectId): Promise<StoredWheel[]> {
+  async findAll(userId: Types.ObjectId): Promise<StoredWheel[]> {
     const documents = await this.wheelModel
-      .find({ ownerId, visibility: WheelVisibility.Private })
+      .find({
+        $or: [{ ownerId: userId }, { "members.userId": userId }],
+      })
       .sort({ updatedAt: -1 })
       .exec();
     return documents.map(mapWheel);
   }
 
   async findById(
-    ownerId: Types.ObjectId,
+    userId: Types.ObjectId,
     wheelId: Types.ObjectId,
   ): Promise<StoredWheel | null> {
     const document = await this.wheelModel
       .findOne({
         _id: wheelId,
-        ownerId,
-        visibility: WheelVisibility.Private,
+        $or: [{ ownerId: userId }, { "members.userId": userId }],
       })
       .exec();
     return document ? mapWheel(document) : null;
@@ -178,7 +179,6 @@ export class WheelsRepository {
         {
           _id: wheelId,
           ownerId,
-          visibility: WheelVisibility.Private,
         },
         update,
         {
@@ -198,7 +198,6 @@ export class WheelsRepository {
       .deleteOne({
         _id: wheelId,
         ownerId,
-        visibility: WheelVisibility.Private,
       })
       .exec();
 
@@ -211,6 +210,84 @@ export class WheelsRepository {
       this.wheelSpinModel.deleteMany({ wheelId }).exec(),
     ]);
     return true;
+  }
+
+  async addMember(
+    ownerId: Types.ObjectId,
+    wheelId: Types.ObjectId,
+    memberUserId: Types.ObjectId,
+    role: WheelRole.Editor | WheelRole.Viewer,
+  ): Promise<StoredWheel | null> {
+    const document = await this.wheelModel
+      .findOneAndUpdate(
+        {
+          _id: wheelId,
+          ownerId,
+          "members.userId": { $ne: memberUserId },
+        },
+        {
+          $push: {
+            members: { userId: memberUserId, role },
+          },
+        },
+        {
+          returnDocument: "after",
+          runValidators: true,
+        },
+      )
+      .exec();
+    return document ? mapWheel(document) : null;
+  }
+
+  async updateMember(
+    ownerId: Types.ObjectId,
+    wheelId: Types.ObjectId,
+    memberUserId: Types.ObjectId,
+    role: WheelRole.Editor | WheelRole.Viewer,
+  ): Promise<StoredWheel | null> {
+    const document = await this.wheelModel
+      .findOneAndUpdate(
+        {
+          _id: wheelId,
+          ownerId,
+          members: {
+            $elemMatch: {
+              userId: memberUserId,
+              role: { $ne: WheelRole.Owner },
+            },
+          },
+        },
+        {
+          $set: { "members.$.role": role },
+        },
+        {
+          returnDocument: "after",
+          runValidators: true,
+        },
+      )
+      .exec();
+    return document ? mapWheel(document) : null;
+  }
+
+  async removeMember(
+    ownerId: Types.ObjectId,
+    wheelId: Types.ObjectId,
+    memberUserId: Types.ObjectId,
+  ): Promise<boolean> {
+    const result = await this.wheelModel
+      .updateOne(
+        { _id: wheelId, ownerId },
+        {
+          $pull: {
+            members: {
+              userId: memberUserId,
+              role: { $ne: WheelRole.Owner },
+            },
+          },
+        },
+      )
+      .exec();
+    return result.modifiedCount === 1;
   }
 
   async findItems(wheelId: Types.ObjectId): Promise<StoredWheelItem[]> {

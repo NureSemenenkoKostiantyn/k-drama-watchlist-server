@@ -1,13 +1,21 @@
 import { Module } from "@nestjs/common";
 
+import { FriendsModule } from "../friends/friends.module";
 import { MediaModule } from "../media/media.module";
+import { NotificationsModule } from "../notifications/notifications.module";
+import { UsersModule } from "../users/users.module";
 import { wheelModelProviders } from "./wheel-model.providers";
 import { WheelsController } from "./wheels.controller";
 import { WheelsRepository } from "./wheels.repository";
 import { WheelsService } from "./wheels.service";
 
 @Module({
-  imports: [MediaModule],
+  imports: [
+    FriendsModule,
+    MediaModule,
+    NotificationsModule,
+    UsersModule,
+  ],
   controllers: [WheelsController],
   providers: [
     ...wheelModelProviders,

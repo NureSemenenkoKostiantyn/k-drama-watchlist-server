@@ -1,8 +1,18 @@
 import { Types } from "mongoose";
 
-import { WheelSelectionMode } from "../../common/types/wheel.types";
-import { type StoredWheelItem } from "./wheels.repository";
-import { selectWheelItem } from "./wheels.service";
+import {
+  WheelRole,
+  WheelSelectionMode,
+  WheelVisibility,
+} from "../../common/types/wheel.types";
+import {
+  type StoredWheel,
+  type StoredWheelItem,
+} from "./wheels.repository";
+import {
+  selectWheelItem,
+  wheelRoleForUser,
+} from "./wheels.service";
 
 describe("selectWheelItem", () => {
   const now = new Date("2026-07-24T12:00:00.000Z");
@@ -81,6 +91,25 @@ describe("selectWheelItem", () => {
   });
 });
 
+describe("wheelRoleForUser", () => {
+  it("keeps the owner authoritative and resolves shared roles", () => {
+    const ownerId = new Types.ObjectId();
+    const editorId = new Types.ObjectId();
+    const viewerId = new Types.ObjectId();
+    const outsiderId = new Types.ObjectId();
+    const wheel = createWheel(ownerId, [
+      { userId: ownerId, role: WheelRole.Viewer },
+      { userId: editorId, role: WheelRole.Editor },
+      { userId: viewerId, role: WheelRole.Viewer },
+    ]);
+
+    expect(wheelRoleForUser(wheel, ownerId)).toBe(WheelRole.Owner);
+    expect(wheelRoleForUser(wheel, editorId)).toBe(WheelRole.Editor);
+    expect(wheelRoleForUser(wheel, viewerId)).toBe(WheelRole.Viewer);
+    expect(wheelRoleForUser(wheel, outsiderId)).toBeNull();
+  });
+});
+
 function createItem(
   overrides: Partial<StoredWheelItem> = {},
 ): StoredWheelItem {
@@ -96,5 +125,21 @@ function createItem(
     createdAt: new Date("2026-07-24T10:00:00.000Z"),
     updatedAt: new Date("2026-07-24T10:00:00.000Z"),
     ...overrides,
+  };
+}
+
+function createWheel(
+  ownerId: Types.ObjectId,
+  members: StoredWheel["members"],
+): StoredWheel {
+  return {
+    _id: new Types.ObjectId(),
+    ownerId,
+    title: "Shared picks",
+    visibility: WheelVisibility.Private,
+    selectionMode: WheelSelectionMode.FullyRandom,
+    members,
+    createdAt: new Date("2026-07-24T10:00:00.000Z"),
+    updatedAt: new Date("2026-07-24T10:00:00.000Z"),
   };
 }
