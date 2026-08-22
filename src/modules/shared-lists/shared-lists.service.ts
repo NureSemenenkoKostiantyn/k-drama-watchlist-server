@@ -1,0 +1,577 @@
+import { HttpStatus, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { createHash, randomBytes } from "node:crypto";
+import { MongoServerError } from "mongodb";
+import { Types } from "mongoose";
+
+import { ApiException } from "../../common/errors/api-exception";
+import {
+  type SharedListDetailsResponse,
+  type SharedListInviteResponse,
+  type SharedListItemResponse,
+  type SharedListMemberResponse,
+  type SharedListResponse,
+  SharedListRole,
+} from "../../common/types/shared-list.types";
+import { type Environment } from "../../config/environment";
+import {
+  MediaRepository,
+  type StoredMedia,
+  toMediaDetails,
+} from "../media/media.repository";
+import {
+  toPublicUserProfile,
+  UsersService,
+} from "../users/users.service";
+import { type AddSharedListItemDto } from "./dto/add-shared-list-item.dto";
+import { type CreateSharedListInviteDto } from "./dto/create-shared-list-invite.dto";
+import { type CreateSharedListDto } from "./dto/create-shared-list.dto";
+import { type ReorderSharedListItemsDto } from "./dto/reorder-shared-list-items.dto";
+import { type UpdateSharedListItemDto } from "./dto/update-shared-list-item.dto";
+import { type UpdateSharedListDto } from "./dto/update-shared-list.dto";
+import {
+  type StoredSharedList,
+  type StoredSharedListItem,
+  SharedListsRepository,
+} from "./shared-lists.repository";
+
+const INVITE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
+
+@Injectable()
+export class SharedListsService {
+  constructor(
+    private readonly repository: SharedListsRepository,
+    private readonly mediaRepository: MediaRepository,
+    private readonly usersService: UsersService,
+    private readonly configService: ConfigService<Environment, true>,
+  ) {}
+
+  async list(authenticatedUserId: string): Promise<SharedListResponse[]> {
+    const userId = toObjectId(authenticatedUserId);
+    const lists = await this.repository.findAll(userId);
+    const items = await this.repository.findItemsForLists(
+      lists.map((list) => list._id),
+    );
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      const key = item.listId.toHexString();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return lists.map((list) =>
+      toListResponse(list, userId, counts.get(list._id.toHexString()) ?? 0),
+    );
+  }
+
+  async create(
+    authenticatedUserId: string,
+    input: CreateSharedListDto,
+  ): Promise<SharedListDetailsResponse> {
+    const userId = toObjectId(authenticatedUserId);
+    const list = await this.repository.create(
+      userId,
+      input.title,
+      normalizeOptionalText(input.description),
+      new Date(),
+    );
+    return this.withDetails(list, userId);
+  }
+
+  async get(
+    authenticatedUserId: string,
+    listId: string,
+  ): Promise<SharedListDetailsResponse> {
+    const userId = toObjectId(authenticatedUserId);
+    return this.withDetails(
+      await this.requireList(userId, new Types.ObjectId(listId)),
+      userId,
+    );
+  }
+
+  async update(
+    authenticatedUserId: string,
+    listId: string,
+    input: UpdateSharedListDto,
+  ): Promise<SharedListDetailsResponse> {
+    if (input.title === undefined && input.description === undefined) {
+      throw invalidList("Provide a shared-list field to update.");
+    }
+    const userId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireOwner(userId, listIdObject);
+    const list = await this.repository.update(userId, listIdObject, {
+      ...(input.title === undefined ? {} : { title: input.title }),
+      ...(input.description === undefined
+        ? {}
+        : {
+            description:
+              input.description === null
+                ? null
+                : (normalizeOptionalText(input.description) ?? null),
+          }),
+    });
+    if (!list) throw listNotFound();
+    return this.withDetails(list, userId);
+  }
+
+  async delete(authenticatedUserId: string, listId: string): Promise<void> {
+    const userId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireOwner(userId, listIdObject);
+    if (!(await this.repository.delete(userId, listIdObject))) {
+      throw listNotFound();
+    }
+  }
+
+  async addItem(
+    authenticatedUserId: string,
+    listId: string,
+    input: AddSharedListItemDto,
+  ): Promise<SharedListItemResponse> {
+    const userId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireEditor(userId, listIdObject);
+    const mediaId = new Types.ObjectId(input.mediaId);
+    const media = await this.mediaRepository.findById(mediaId);
+    if (!media) throw mediaNotFound();
+    const items = await this.repository.findItems(listIdObject);
+    try {
+      const item = await this.repository.createItem(
+        listIdObject,
+        mediaId,
+        userId,
+        items.length,
+        {
+          ...(normalizeOptionalText(input.note) === undefined
+            ? {}
+            : { note: normalizeOptionalText(input.note) }),
+          ...(input.groupStatus === undefined
+            ? {}
+            : { groupStatus: input.groupStatus }),
+          ...(input.groupProgress === undefined
+            ? {}
+            : { groupProgress: { ...input.groupProgress } }),
+        },
+      );
+      await this.repository.touch(listIdObject);
+      return this.withSingleItemData(item);
+    } catch (error: unknown) {
+      if (isDuplicateKeyError(error)) throw itemAlreadyExists();
+      throw error;
+    }
+  }
+
+  async updateItem(
+    authenticatedUserId: string,
+    listId: string,
+    itemId: string,
+    input: UpdateSharedListItemDto,
+  ): Promise<SharedListItemResponse> {
+    if (
+      input.note === undefined &&
+      input.groupStatus === undefined &&
+      input.groupProgress === undefined
+    ) {
+      throw invalidList("Provide a shared-list item field to update.");
+    }
+    const userId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireEditor(userId, listIdObject);
+    const item = await this.repository.updateItem(
+      listIdObject,
+      new Types.ObjectId(itemId),
+      {
+        ...(input.note === undefined
+          ? {}
+          : {
+              note:
+                input.note === null
+                  ? null
+                  : (normalizeOptionalText(input.note) ?? null),
+            }),
+        ...(input.groupStatus === undefined
+          ? {}
+          : { groupStatus: input.groupStatus }),
+        ...(input.groupProgress === undefined
+          ? {}
+          : {
+              groupProgress:
+                input.groupProgress === null
+                  ? null
+                  : { ...input.groupProgress },
+            }),
+      },
+    );
+    if (!item) throw itemNotFound();
+    await this.repository.touch(listIdObject);
+    return this.withSingleItemData(item);
+  }
+
+  async deleteItem(
+    authenticatedUserId: string,
+    listId: string,
+    itemId: string,
+  ): Promise<void> {
+    const userId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireEditor(userId, listIdObject);
+    if (
+      !(await this.repository.deleteItem(
+        listIdObject,
+        new Types.ObjectId(itemId),
+      ))
+    ) {
+      throw itemNotFound();
+    }
+    const remaining = await this.repository.findItems(listIdObject);
+    await this.repository.reorderItems(
+      listIdObject,
+      remaining.map((item) => item._id),
+    );
+    await this.repository.touch(listIdObject);
+  }
+
+  async reorderItems(
+    authenticatedUserId: string,
+    listId: string,
+    input: ReorderSharedListItemsDto,
+  ): Promise<SharedListItemResponse[]> {
+    const userId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireEditor(userId, listIdObject);
+    const current = await this.repository.findItems(listIdObject);
+    if (
+      input.itemIds.length !== current.length ||
+      !sameIds(
+        input.itemIds,
+        current.map((item) => item._id.toHexString()),
+      )
+    ) {
+      throw invalidList("Item order must contain every list item exactly once.");
+    }
+    await this.repository.reorderItems(
+      listIdObject,
+      input.itemIds.map((id) => new Types.ObjectId(id)),
+    );
+    await this.repository.touch(listIdObject);
+    return this.withItemData(await this.repository.findItems(listIdObject));
+  }
+
+  async createInvite(
+    authenticatedUserId: string,
+    listId: string,
+    input: CreateSharedListInviteDto,
+  ): Promise<SharedListInviteResponse> {
+    const userId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireOwner(userId, listIdObject);
+    const token = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(Date.now() + INVITE_LIFETIME_MS);
+    await this.repository.createInvite(
+      listIdObject,
+      userId,
+      hashToken(token),
+      input.role,
+      expiresAt,
+    );
+    const frontendUrl = this.configService
+      .getOrThrow<string>("FRONTEND_URL")
+      .replace(/\/$/, "");
+    return {
+      acceptUrl: `${frontendUrl}/lists/invites/${token}`,
+      role: input.role,
+      expiresAt: expiresAt.toISOString(),
+    };
+  }
+
+  async acceptInvite(
+    authenticatedUserId: string,
+    token: string,
+  ): Promise<SharedListDetailsResponse> {
+    const userId = toObjectId(authenticatedUserId);
+    const list = await this.repository.runInTransaction(async (session) => {
+      const invite = await this.repository.findInviteByTokenHash(
+        hashToken(token),
+        session,
+      );
+      if (!invite) throw invalidInvite();
+      const existingMembership = await this.repository.findById(
+        userId,
+        invite.listId,
+        session,
+      );
+      if (existingMembership) throw memberAlreadyExists();
+      const joined = await this.repository.addMember(
+        invite.listId,
+        userId,
+        invite.role,
+        new Date(),
+        session,
+      );
+      if (!joined) throw invalidInvite();
+      await this.repository.deleteInvite(invite._id, session);
+      return joined;
+    });
+    return this.withDetails(list, userId);
+  }
+
+  private async requireList(
+    userId: Types.ObjectId,
+    listId: Types.ObjectId,
+  ): Promise<StoredSharedList> {
+    const list = await this.repository.findById(userId, listId);
+    if (!list) throw listNotFound();
+    return list;
+  }
+
+  private async requireOwner(
+    userId: Types.ObjectId,
+    listId: Types.ObjectId,
+  ): Promise<StoredSharedList> {
+    const list = await this.requireList(userId, listId);
+    if (sharedListRoleForUser(list, userId) !== SharedListRole.Owner) {
+      throw listForbidden();
+    }
+    return list;
+  }
+
+  private async requireEditor(
+    userId: Types.ObjectId,
+    listId: Types.ObjectId,
+  ): Promise<StoredSharedList> {
+    const list = await this.requireList(userId, listId);
+    const role = sharedListRoleForUser(list, userId);
+    if (role !== SharedListRole.Owner && role !== SharedListRole.Editor) {
+      throw listForbidden();
+    }
+    return list;
+  }
+
+  private async requireMedia(mediaId: Types.ObjectId): Promise<StoredMedia> {
+    const media = await this.mediaRepository.findById(mediaId);
+    if (!media) throw mediaNotFound();
+    return media;
+  }
+
+  private async withSingleItemData(
+    item: StoredSharedListItem,
+  ): Promise<SharedListItemResponse> {
+    const [response] = await this.withItemData([item]);
+    if (!response) throw itemNotFound();
+    return response;
+  }
+
+  private async withDetails(
+    list: StoredSharedList,
+    userId: Types.ObjectId,
+  ): Promise<SharedListDetailsResponse> {
+    const items = await this.repository.findItems(list._id);
+    const users = await this.usersService.findStoredByIds(
+      uniqueObjectIds([
+        ...list.members.map((member) => member.userId),
+        ...items.map((item) => item.addedByUserId),
+      ]),
+    );
+    const usersById = new Map(
+      users.map((user) => [user._id.toHexString(), user]),
+    );
+    return {
+      ...toListResponse(list, userId, items.length),
+      members: list.members.flatMap((member) => {
+        const user = usersById.get(member.userId.toHexString());
+        return user
+          ? [
+              {
+                user: toPublicUserProfile(user),
+                role: member.role,
+                joinedAt: member.joinedAt.toISOString(),
+              } satisfies SharedListMemberResponse,
+            ]
+          : [];
+      }),
+      items: await this.withItemData(items, usersById),
+    };
+  }
+
+  private async withItemData(
+    items: StoredSharedListItem[],
+    suppliedUsers?: Map<
+      string,
+      Parameters<typeof toPublicUserProfile>[0]
+    >,
+  ): Promise<SharedListItemResponse[]> {
+    const [media, users] = await Promise.all([
+      this.mediaRepository.findByIds(items.map((item) => item.mediaId)),
+      suppliedUsers
+        ? Promise.resolve([])
+        : this.usersService.findStoredByIds(
+            uniqueObjectIds(items.map((item) => item.addedByUserId)),
+          ),
+    ]);
+    const mediaById = new Map(
+      media.map((entry) => [entry._id.toHexString(), entry]),
+    );
+    const usersById =
+      suppliedUsers ??
+      new Map(users.map((user) => [user._id.toHexString(), user]));
+    return items.map((item) => {
+      const itemMedia = mediaById.get(item.mediaId.toHexString());
+      if (!itemMedia) throw mediaNotFound();
+      return this.toItemResponse(
+        item,
+        itemMedia,
+        usersById.get(item.addedByUserId.toHexString()),
+      );
+    });
+  }
+
+  private toItemResponse(
+    item: StoredSharedListItem,
+    media: StoredMedia,
+    addedBy?: Parameters<typeof toPublicUserProfile>[0],
+  ): SharedListItemResponse {
+    return {
+      id: item._id.toHexString(),
+      mediaId: item.mediaId.toHexString(),
+      position: item.position,
+      media: toMediaDetails(media),
+      createdAt: item.createdAt.toISOString(),
+      updatedAt: item.updatedAt.toISOString(),
+      ...(addedBy ? { addedBy: toPublicUserProfile(addedBy) } : {}),
+      ...(item.note === undefined ? {} : { note: item.note }),
+      ...(item.groupStatus === undefined
+        ? {}
+        : { groupStatus: item.groupStatus }),
+      ...(item.groupProgress === undefined
+        ? {}
+        : {
+            groupProgress: {
+              currentSeason: item.groupProgress.currentSeason,
+              currentEpisode: item.groupProgress.currentEpisode,
+            },
+          }),
+    };
+  }
+}
+
+export function sharedListRoleForUser(
+  list: StoredSharedList,
+  userId: Types.ObjectId,
+): SharedListRole | null {
+  if (list.ownerId.equals(userId)) return SharedListRole.Owner;
+  return (
+    list.members.find((member) => member.userId.equals(userId))?.role ?? null
+  );
+}
+
+function toListResponse(
+  list: StoredSharedList,
+  userId: Types.ObjectId,
+  itemCount: number,
+): SharedListResponse {
+  return {
+    id: list._id.toHexString(),
+    title: list.title,
+    visibility: list.visibility,
+    role: sharedListRoleForUser(list, userId) ?? SharedListRole.Viewer,
+    itemCount,
+    createdAt: list.createdAt.toISOString(),
+    updatedAt: list.updatedAt.toISOString(),
+    ...(list.description === undefined ? {} : { description: list.description }),
+  };
+}
+
+function sameIds(left: string[], right: string[]): boolean {
+  const expected = new Set(right);
+  return (
+    new Set(left).size === left.length &&
+    left.every((id) => expected.has(id))
+  );
+}
+
+function uniqueObjectIds(ids: Types.ObjectId[]): Types.ObjectId[] {
+  return [...new Map(ids.map((id) => [id.toHexString(), id])).values()];
+}
+
+function normalizeOptionalText(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
+}
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function toObjectId(id: string): Types.ObjectId {
+  if (!Types.ObjectId.isValid(id)) {
+    throw new Error("Authenticated user ID is not a MongoDB ObjectId");
+  }
+  return new Types.ObjectId(id);
+}
+
+function isDuplicateKeyError(error: unknown): error is MongoServerError {
+  return error instanceof MongoServerError && error.code === 11_000;
+}
+
+function listNotFound(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.NOT_FOUND,
+    code: "NOT_FOUND",
+    message: "Shared list not found.",
+  });
+}
+
+function itemNotFound(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.NOT_FOUND,
+    code: "NOT_FOUND",
+    message: "Shared-list item not found.",
+  });
+}
+
+function mediaNotFound(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.NOT_FOUND,
+    code: "NOT_FOUND",
+    message: "Media not found.",
+  });
+}
+
+function listForbidden(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.FORBIDDEN,
+    code: "FORBIDDEN",
+    message: "You do not have permission to change this shared list.",
+  });
+}
+
+function invalidList(message: string): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.BAD_REQUEST,
+    code: "VALIDATION_ERROR",
+    message,
+  });
+}
+
+function itemAlreadyExists(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.CONFLICT,
+    code: "SHARED_LIST_ITEM_ALREADY_EXISTS",
+    message: "This title is already on the shared list.",
+  });
+}
+
+function invalidInvite(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.BAD_REQUEST,
+    code: "INVITE_INVALID",
+    message: "This shared-list invitation is invalid or expired.",
+  });
+}
+
+function memberAlreadyExists(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.CONFLICT,
+    code: "SHARED_LIST_MEMBER_ALREADY_EXISTS",
+    message: "You already have access to this shared list.",
+  });
+}

@@ -25,6 +25,10 @@ The current backend foundation provides:
 - Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
 - Private shared wheels with owner, editor, and viewer roles, weighted candidates, server-side
   selection, and attributed spin history.
+- Private shared lists with secure one-time role invitations, ordered shared-media items, notes,
+  group lifecycle state, and group progress.
+- Plain-text shared-list comments with replies, spoiler flags, soft deletion, and comment/reply
+  notifications.
 - Public user profiles and protected weighted name/username discovery without exposing email
   addresses.
 - Friend-only title suggestions with transactional acceptance into the recipient's library.
@@ -38,7 +42,8 @@ The current backend foundation provides:
 
 Public profiles, username discovery, friendship management, friend suggestions, notifications, safe
 friend context, reusable settings, visibility-controlled friend libraries, and accepted-friend
-wheel sharing are implemented as the first social vertical slices. Shared lists remain deferred.
+wheel sharing, private shared lists, and shared-list discussions are implemented. Shared-list
+member management and public/unlisted access remain deferred.
 Authentication emails are delivered through Resend.
 
 ## Prerequisites
@@ -72,7 +77,8 @@ The seed creates the verified demo account `demo@drama-watch.local` with passwor
 `DramaWatch1!`, three example friendship states, received and sent suggestions, social
 notifications, four shared media records, a personal library, accepted-friend media activity,
 friends-only demo visibility settings, categories, default priority lanes, and owned and shared
-wheels with example spin history. It uses upserts,
+wheels with example spin history, and owned and read-only shared lists with group progress and
+spoiler-marked discussion. It uses upserts,
 does not clear existing records, and is never run automatically. The command refuses to run unless
 `NODE_ENV=development`, the database is the local `drama_watch` database, and MongoDB is reached
 through a loopback or Compose hostname; it cannot target MongoDB Atlas.
@@ -428,6 +434,35 @@ with accepted friends as viewers or editors. Editors can add, change, remove, an
 and can spin; viewers can inspect candidates and attributed shared history. Only owners can change
 wheel settings, manage members, reset history, or delete the wheel. Public and unlisted wheel links
 remain deferred.
+
+## Private shared lists
+
+Authenticated users can create lists and access lists shared with them through:
+
+```text
+GET    /api/lists
+POST   /api/lists
+GET    /api/lists/:listId
+PATCH  /api/lists/:listId
+DELETE /api/lists/:listId
+
+POST   /api/lists/:listId/items
+PATCH  /api/lists/:listId/items/:itemId
+DELETE /api/lists/:listId/items/:itemId
+POST   /api/lists/:listId/reorder
+
+POST   /api/lists/:listId/invites
+POST   /api/list-invites/:token/accept
+```
+
+Owners create seven-day, one-time invitation links for editor, commenter, or viewer access. Only a
+SHA-256 token hash is persisted. Owners and editors may add shared media snapshots, reorder every
+item as a complete array, and update shared notes, group status, and group progress. Commenters and
+viewers cannot edit shared items. Owners, editors, and commenters may post plain-text comments and
+one-level replies; viewers can read them. Spoilers remain hidden until explicitly revealed. Authors
+may edit or soft-delete their own comments, while list owners may moderate by soft-deleting any
+comment. Comment and reply notifications link back to the list. Only owners can rename or delete a
+list and create invitations. List deletion cascades to items, comments, and unused invitations.
 
 ## Container
 

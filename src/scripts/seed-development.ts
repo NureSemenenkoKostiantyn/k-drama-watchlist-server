@@ -155,6 +155,8 @@ export async function seedDevelopmentData(
 
   const media = await seedMedia(database, now);
   await seedWheels(database, users, media, now);
+  await seedSharedLists(database, users, media, now);
+  await seedSharedListComments(database, users, now);
   await seedSuggestions(database, users, media, now);
   await seedNotifications(database, users, media, now);
   const categories = await seedCategories(
@@ -702,6 +704,199 @@ async function seedWheels(
       { upsert: true },
     ),
   ]);
+}
+
+async function seedSharedLists(
+  database: Db,
+  users: {
+    demo: SeedUser;
+    acceptedFriend: SeedUser;
+  },
+  media: Record<string, SeedMedia>,
+  now: Date,
+): Promise<void> {
+  const goblin = requireSeeded(media, "tv:67915");
+  const crashLanding = requireSeeded(media, "tv:94796");
+  const attorneyWoo = requireSeeded(media, "tv:197067");
+  const parasite = requireSeeded(media, "movie:496243");
+  const lists = database.collection("sharedLists");
+  const items = database.collection("sharedListItems");
+  const joinedAt = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1_000);
+  const owned = await lists.findOneAndUpdate(
+    { ownerId: users.demo._id, title: "Friday watch party" },
+    {
+      $set: {
+        description: "An owned list with a friend invited as an editor.",
+        visibility: "private",
+        members: [
+          { userId: users.demo._id, role: "owner", joinedAt },
+          { userId: users.acceptedFriend._id, role: "editor", joinedAt },
+        ],
+        updatedAt: now,
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true, returnDocument: "after" },
+  );
+  const shared = await lists.findOneAndUpdate(
+    { ownerId: users.acceptedFriend._id, title: "Dahyun fan club picks" },
+    {
+      $set: {
+        description: "A read-only shared list for the demo account.",
+        visibility: "private",
+        members: [
+          { userId: users.acceptedFriend._id, role: "owner", joinedAt },
+          { userId: users.demo._id, role: "viewer", joinedAt },
+        ],
+        updatedAt: now,
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true, returnDocument: "after" },
+  );
+
+  if (!owned || !shared) {
+    throw new Error("Development seed could not create shared lists.");
+  }
+
+  await Promise.all([
+    upsertSharedListItem(items, owned._id, goblin._id, users.demo._id, 0, now, {
+      note: "Start after dinner.",
+      groupStatus: "watching",
+      groupProgress: { currentSeason: 1, currentEpisode: 3 },
+    }),
+    upsertSharedListItem(
+      items,
+      owned._id,
+      crashLanding._id,
+      users.acceptedFriend._id,
+      1,
+      now,
+      { groupStatus: "planned" },
+    ),
+    upsertSharedListItem(
+      items,
+      shared._id,
+      attorneyWoo._id,
+      users.acceptedFriend._id,
+      0,
+      now,
+      { note: "A comforting group pick.", groupStatus: "planned" },
+    ),
+    upsertSharedListItem(
+      items,
+      shared._id,
+      parasite._id,
+      users.acceptedFriend._id,
+      1,
+      now,
+      { groupStatus: "finished" },
+    ),
+  ]);
+}
+
+async function upsertSharedListItem(
+  collection: Collection,
+  listId: ObjectId,
+  mediaId: ObjectId,
+  addedByUserId: ObjectId,
+  position: number,
+  now: Date,
+  extra: Record<string, unknown>,
+): Promise<void> {
+  await collection.updateOne(
+    { listId, mediaId },
+    {
+      $set: { addedByUserId, position, ...extra, updatedAt: now },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true },
+  );
+}
+
+async function seedSharedListComments(
+  database: Db,
+  users: {
+    demo: SeedUser;
+    acceptedFriend: SeedUser;
+  },
+  now: Date,
+): Promise<void> {
+  const list = await database.collection("sharedLists").findOne({
+    ownerId: users.demo._id,
+    title: "Friday watch party",
+  });
+  if (!list) throw new Error("Development seed could not resolve a shared list.");
+  const item = await database.collection("sharedListItems").findOne(
+    { listId: list._id },
+    { sort: { position: 1 } },
+  );
+  if (!item) throw new Error("Development seed could not resolve a shared-list item.");
+  const comments = database.collection("comments");
+  const root = await comments.findOneAndUpdate(
+    {
+      listId: list._id,
+      listItemId: item._id,
+      authorId: users.acceptedFriend._id,
+      parentCommentId: { $exists: false },
+    },
+    {
+      $set: {
+        body: "The first episode has a small spoiler worth discussing.",
+        hasSpoiler: true,
+      },
+      $unset: { editedAt: 1, deletedAt: 1 },
+      $setOnInsert: {
+        listId: list._id,
+        listItemId: item._id,
+        authorId: users.acceptedFriend._id,
+        createdAt: new Date(now.getTime() - 45 * 60 * 1_000),
+      },
+    },
+    { upsert: true, returnDocument: "after" },
+  );
+  if (!root) throw new Error("Development seed could not create a shared-list comment.");
+  await comments.updateOne(
+    {
+      listId: list._id,
+      listItemId: item._id,
+      authorId: users.demo._id,
+      parentCommentId: root._id,
+    },
+    {
+      $set: { body: "Let’s talk after everyone catches up.", hasSpoiler: false },
+      $unset: { editedAt: 1, deletedAt: 1 },
+      $setOnInsert: {
+        listId: list._id,
+        listItemId: item._id,
+        authorId: users.demo._id,
+        parentCommentId: root._id,
+        createdAt: new Date(now.getTime() - 30 * 60 * 1_000),
+      },
+    },
+    { upsert: true },
+  );
+  await database.collection("notifications").updateOne(
+    {
+      userId: users.demo._id,
+      type: "shared_list_comment",
+      entityId: list._id,
+    },
+    {
+      $set: {
+        actorUserId: users.acceptedFriend._id,
+        isRead: false,
+        createdAt: new Date(now.getTime() - 45 * 60 * 1_000),
+      },
+      $unset: { readAt: 1 },
+      $setOnInsert: {
+        userId: users.demo._id,
+        type: "shared_list_comment",
+        entityId: list._id,
+      },
+    },
+    { upsert: true },
+  );
 }
 
 async function upsertWheelItem(
