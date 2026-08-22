@@ -25,10 +25,13 @@ The current backend foundation provides:
 - Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
 - Private shared wheels with owner, editor, and viewer roles, weighted candidates, server-side
   selection, and attributed spin history.
-- Private shared lists with secure one-time role invitations, ordered shared-media items, notes,
+- Private shared lists with targeted one-time role invitations, ordered shared-media items, notes,
   group lifecycle state, and group progress.
 - Plain-text shared-list comments with replies, spoiler flags, soft deletion, and comment/reply
   notifications.
+- Owner-only shared-list member role/removal controls and list-linked shared-item-update
+  notifications.
+- Target-owned shared-list invitation notifications with secure token and in-app acceptance paths.
 - Public user profiles and protected weighted name/username discovery without exposing email
   addresses.
 - Friend-only title suggestions with transactional acceptance into the recipient's library.
@@ -42,8 +45,8 @@ The current backend foundation provides:
 
 Public profiles, username discovery, friendship management, friend suggestions, notifications, safe
 friend context, reusable settings, visibility-controlled friend libraries, and accepted-friend
-wheel sharing, private shared lists, and shared-list discussions are implemented. Shared-list
-member management and public/unlisted access remain deferred.
+wheel sharing, private shared lists, shared-list discussions, and shared-list member management are
+implemented. Public/unlisted access remains deferred.
 Authentication emails are delivered through Resend.
 
 ## Prerequisites
@@ -452,17 +455,23 @@ DELETE /api/lists/:listId/items/:itemId
 POST   /api/lists/:listId/reorder
 
 POST   /api/lists/:listId/invites
+PATCH  /api/lists/:listId/members/:memberUserId
+DELETE /api/lists/:listId/members/:memberUserId
 POST   /api/list-invites/:token/accept
 ```
 
-Owners create seven-day, one-time invitation links for editor, commenter, or viewer access. Only a
-SHA-256 token hash is persisted. Owners and editors may add shared media snapshots, reorder every
+Owners create seven-day, one-time invitation links for an exact registered username with editor,
+commenter, or viewer access. Only a SHA-256 token hash is persisted, and only the target may accept
+through the token link or in-app invitation notification. Resending refreshes the pending invitation
+and notification. Owners and editors may add shared media snapshots, reorder every
 item as a complete array, and update shared notes, group status, and group progress. Commenters and
 viewers cannot edit shared items. Owners, editors, and commenters may post plain-text comments and
 one-level replies; viewers can read them. Spoilers remain hidden until explicitly revealed. Authors
 may edit or soft-delete their own comments, while list owners may moderate by soft-deleting any
 comment. Comment and reply notifications link back to the list. Only owners can rename or delete a
-list and create invitations. List deletion cascades to items, comments, and unused invitations.
+list, create invitations, change non-owner roles, or remove non-owner members; the owner membership
+cannot be changed or removed. Item additions, edits, removals, and reorders notify every other
+member and link back to the list. List deletion cascades to items, comments, and unused invitations.
 
 ## Container
 

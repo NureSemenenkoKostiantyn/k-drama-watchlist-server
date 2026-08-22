@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 
 import { MediaModule } from "../media/media.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { UsersModule } from "../users/users.module";
 import {
   COMMENT_MODEL,
@@ -15,7 +16,7 @@ import { SharedListsRepository } from "./shared-lists.repository";
 import { SharedListsService } from "./shared-lists.service";
 
 @Module({
-  imports: [MediaModule, UsersModule],
+  imports: [MediaModule, NotificationsModule, UsersModule],
   controllers: [SharedListsController, SharedListInvitesController],
   providers: [
     commentModelProvider,

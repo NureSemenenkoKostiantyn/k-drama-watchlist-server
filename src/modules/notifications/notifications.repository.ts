@@ -138,6 +138,21 @@ export class NotificationsRepository {
       .exec();
     return result.modifiedCount;
   }
+
+  async markEntityRead(
+    userId: Types.ObjectId,
+    type: NotificationType,
+    entityId: Types.ObjectId,
+    readAt: Date,
+  ): Promise<void> {
+    await this.notificationModel
+      .updateOne(
+        { userId, type, entityId, isRead: false },
+        { $set: { isRead: true, readAt } },
+        { runValidators: true },
+      )
+      .exec();
+  }
 }
 
 function mapNotification(
