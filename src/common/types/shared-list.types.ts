@@ -61,7 +61,9 @@ export interface SharedListDetailsResponse extends SharedListResponse {
 }
 
 export interface SharedListInviteResponse {
+  id: string;
   acceptUrl: string;
+  target: PublicUserProfileResponse;
   role: Exclude<SharedListRole, SharedListRole.Owner>;
   expiresAt: string;
 }

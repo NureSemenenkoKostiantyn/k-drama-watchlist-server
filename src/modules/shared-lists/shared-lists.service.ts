@@ -5,6 +5,7 @@ import { MongoServerError } from "mongodb";
 import { Types } from "mongoose";
 
 import { ApiException } from "../../common/errors/api-exception";
+import { NotificationType } from "../../common/types/notification.types";
 import {
   type SharedListDetailsResponse,
   type SharedListInviteResponse,
@@ -19,6 +20,7 @@ import {
   type StoredMedia,
   toMediaDetails,
 } from "../media/media.repository";
+import { NotificationsService } from "../notifications/notifications.service";
 import {
   toPublicUserProfile,
   UsersService,
@@ -28,6 +30,7 @@ import { type CreateSharedListInviteDto } from "./dto/create-shared-list-invite.
 import { type CreateSharedListDto } from "./dto/create-shared-list.dto";
 import { type ReorderSharedListItemsDto } from "./dto/reorder-shared-list-items.dto";
 import { type UpdateSharedListItemDto } from "./dto/update-shared-list-item.dto";
+import { type UpdateSharedListMemberDto } from "./dto/update-shared-list-member.dto";
 import { type UpdateSharedListDto } from "./dto/update-shared-list.dto";
 import {
   type StoredSharedList,
@@ -42,6 +45,7 @@ export class SharedListsService {
   constructor(
     private readonly repository: SharedListsRepository,
     private readonly mediaRepository: MediaRepository,
+    private readonly notificationsService: NotificationsService,
     private readonly usersService: UsersService,
     private readonly configService: ConfigService<Environment, true>,
   ) {}
@@ -129,7 +133,7 @@ export class SharedListsService {
   ): Promise<SharedListItemResponse> {
     const userId = toObjectId(authenticatedUserId);
     const listIdObject = new Types.ObjectId(listId);
-    await this.requireEditor(userId, listIdObject);
+    const list = await this.requireEditor(userId, listIdObject);
     const mediaId = new Types.ObjectId(input.mediaId);
     const media = await this.mediaRepository.findById(mediaId);
     if (!media) throw mediaNotFound();
@@ -153,6 +157,7 @@ export class SharedListsService {
         },
       );
       await this.repository.touch(listIdObject);
+      await this.publishItemUpdate(list, userId);
       return this.withSingleItemData(item);
     } catch (error: unknown) {
       if (isDuplicateKeyError(error)) throw itemAlreadyExists();
@@ -175,7 +180,7 @@ export class SharedListsService {
     }
     const userId = toObjectId(authenticatedUserId);
     const listIdObject = new Types.ObjectId(listId);
-    await this.requireEditor(userId, listIdObject);
+    const list = await this.requireEditor(userId, listIdObject);
     const item = await this.repository.updateItem(
       listIdObject,
       new Types.ObjectId(itemId),
@@ -203,6 +208,7 @@ export class SharedListsService {
     );
     if (!item) throw itemNotFound();
     await this.repository.touch(listIdObject);
+    await this.publishItemUpdate(list, userId);
     return this.withSingleItemData(item);
   }
 
@@ -213,7 +219,7 @@ export class SharedListsService {
   ): Promise<void> {
     const userId = toObjectId(authenticatedUserId);
     const listIdObject = new Types.ObjectId(listId);
-    await this.requireEditor(userId, listIdObject);
+    const list = await this.requireEditor(userId, listIdObject);
     if (
       !(await this.repository.deleteItem(
         listIdObject,
@@ -228,6 +234,7 @@ export class SharedListsService {
       remaining.map((item) => item._id),
     );
     await this.repository.touch(listIdObject);
+    await this.publishItemUpdate(list, userId);
   }
 
   async reorderItems(
@@ -237,7 +244,7 @@ export class SharedListsService {
   ): Promise<SharedListItemResponse[]> {
     const userId = toObjectId(authenticatedUserId);
     const listIdObject = new Types.ObjectId(listId);
-    await this.requireEditor(userId, listIdObject);
+    const list = await this.requireEditor(userId, listIdObject);
     const current = await this.repository.findItems(listIdObject);
     if (
       input.itemIds.length !== current.length ||
@@ -253,6 +260,7 @@ export class SharedListsService {
       input.itemIds.map((id) => new Types.ObjectId(id)),
     );
     await this.repository.touch(listIdObject);
+    await this.publishItemUpdate(list, userId);
     return this.withItemData(await this.repository.findItems(listIdObject));
   }
 
@@ -263,21 +271,34 @@ export class SharedListsService {
   ): Promise<SharedListInviteResponse> {
     const userId = toObjectId(authenticatedUserId);
     const listIdObject = new Types.ObjectId(listId);
-    await this.requireOwner(userId, listIdObject);
+    const list = await this.requireOwner(userId, listIdObject);
+    const target = await this.usersService.resolveByUsername(input.username);
+    if (list.members.some((member) => member.userId.equals(target._id))) {
+      throw memberAlreadyExists();
+    }
     const token = randomBytes(32).toString("base64url");
     const expiresAt = new Date(Date.now() + INVITE_LIFETIME_MS);
-    await this.repository.createInvite(
+    const invite = await this.repository.upsertInvite(
       listIdObject,
       userId,
+      target._id,
       hashToken(token),
       input.role,
       expiresAt,
     );
+    await this.notificationsService.publish({
+      userId: target._id,
+      type: NotificationType.SharedListInvite,
+      actorUserId: userId,
+      entityId: invite._id,
+    });
     const frontendUrl = this.configService
       .getOrThrow<string>("FRONTEND_URL")
       .replace(/\/$/, "");
     return {
+      id: invite._id.toHexString(),
       acceptUrl: `${frontendUrl}/lists/invites/${token}`,
+      target: toPublicUserProfile(target),
       role: input.role,
       expiresAt: expiresAt.toISOString(),
     };
@@ -285,14 +306,21 @@ export class SharedListsService {
 
   async acceptInvite(
     authenticatedUserId: string,
-    token: string,
+    identifier: string,
   ): Promise<SharedListDetailsResponse> {
     const userId = toObjectId(authenticatedUserId);
-    const list = await this.repository.runInTransaction(async (session) => {
-      const invite = await this.repository.findInviteByTokenHash(
-        hashToken(token),
-        session,
-      );
+    const accepted = await this.repository.runInTransaction(async (session) => {
+      const invite = identifier.length === 24
+        ? await this.repository.findInviteById(
+            new Types.ObjectId(identifier),
+            userId,
+            session,
+          )
+        : await this.repository.findInviteByTokenHash(
+            hashToken(identifier),
+            userId,
+            session,
+          );
       if (!invite) throw invalidInvite();
       const existingMembership = await this.repository.findById(
         userId,
@@ -309,9 +337,63 @@ export class SharedListsService {
       );
       if (!joined) throw invalidInvite();
       await this.repository.deleteInvite(invite._id, session);
-      return joined;
+      return { list: joined, inviteId: invite._id };
     });
-    return this.withDetails(list, userId);
+    await this.notificationsService.markEntityRead({
+      userId,
+      type: NotificationType.SharedListInvite,
+      entityId: accepted.inviteId,
+    });
+    return this.withDetails(accepted.list, userId);
+  }
+
+  async updateMember(
+    authenticatedUserId: string,
+    listId: string,
+    memberUserId: string,
+    input: UpdateSharedListMemberDto,
+  ): Promise<SharedListMemberResponse> {
+    const ownerId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    const memberId = new Types.ObjectId(memberUserId);
+    await this.requireOwner(ownerId, listIdObject);
+    const list = await this.repository.updateMember(
+      ownerId,
+      listIdObject,
+      memberId,
+      input.role,
+    );
+    if (!list) throw memberNotFound();
+    const [member] = await this.usersService.findStoredByIds([memberId]);
+    if (!member) throw memberNotFound();
+    const membership = list.members.find((candidate) =>
+      candidate.userId.equals(memberId),
+    );
+    if (!membership) throw memberNotFound();
+    return {
+      user: toPublicUserProfile(member),
+      role: input.role,
+      joinedAt: membership.joinedAt.toISOString(),
+    };
+  }
+
+  async removeMember(
+    authenticatedUserId: string,
+    listId: string,
+    memberUserId: string,
+  ): Promise<void> {
+    const ownerId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireOwner(ownerId, listIdObject);
+    if (
+      !(await this.repository.removeMember(
+        ownerId,
+        listIdObject,
+        new Types.ObjectId(memberUserId),
+      ))
+    ) {
+      throw memberNotFound();
+    }
   }
 
   private async requireList(
@@ -358,6 +440,24 @@ export class SharedListsService {
     const [response] = await this.withItemData([item]);
     if (!response) throw itemNotFound();
     return response;
+  }
+
+  private async publishItemUpdate(
+    list: StoredSharedList,
+    actorUserId: Types.ObjectId,
+  ): Promise<void> {
+    await Promise.all(
+      uniqueObjectIds(list.members.map((member) => member.userId))
+        .filter((userId) => !userId.equals(actorUserId))
+        .map((userId) =>
+          this.notificationsService.publish({
+            userId,
+            type: NotificationType.SharedItemUpdated,
+            actorUserId,
+            entityId: list._id,
+          }),
+        ),
+    );
   }
 
   private async withDetails(
@@ -573,5 +673,13 @@ function memberAlreadyExists(): ApiException {
     statusCode: HttpStatus.CONFLICT,
     code: "SHARED_LIST_MEMBER_ALREADY_EXISTS",
     message: "You already have access to this shared list.",
+  });
+}
+
+function memberNotFound(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.NOT_FOUND,
+    code: "NOT_FOUND",
+    message: "Shared-list member not found.",
   });
 }

@@ -1,4 +1,4 @@
-import { IsMongoId, IsString, Length } from "class-validator";
+import { IsMongoId, IsString, Matches } from "class-validator";
 
 export class SharedListParamsDto {
   @IsMongoId()
@@ -10,8 +10,13 @@ export class SharedListItemParamsDto extends SharedListParamsDto {
   itemId!: string;
 }
 
+export class SharedListMemberParamsDto extends SharedListParamsDto {
+  @IsMongoId()
+  memberUserId!: string;
+}
+
 export class SharedListInviteParamsDto {
   @IsString()
-  @Length(43, 43)
-  token!: string;
+  @Matches(/^(?:[a-f\d]{24}|[A-Za-z0-9_-]{43})$/)
+  identifier!: string;
 }

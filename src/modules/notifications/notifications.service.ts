@@ -4,6 +4,7 @@ import { Types } from "mongoose";
 import { ApiException } from "../../common/errors/api-exception";
 import {
   type MarkAllNotificationsResponse,
+  NotificationType,
   type NotificationResponse,
   type NotificationsResponse,
 } from "../../common/types/notification.types";
@@ -100,6 +101,31 @@ export class NotificationsService {
           recipientId: input.userId.toHexString(),
         },
         "Notification delivery failed",
+      );
+    }
+  }
+
+  async markEntityRead(input: {
+    userId: Types.ObjectId;
+    type: NotificationType;
+    entityId: Types.ObjectId;
+  }): Promise<void> {
+    try {
+      await this.notificationsRepository.markEntityRead(
+        input.userId,
+        input.type,
+        input.entityId,
+        new Date(),
+      );
+    } catch (error: unknown) {
+      this.logger.error(
+        {
+          error,
+          notificationType: input.type,
+          recipientId: input.userId.toHexString(),
+          entityId: input.entityId.toHexString(),
+        },
+        "Notification read state could not be settled",
       );
     }
   }

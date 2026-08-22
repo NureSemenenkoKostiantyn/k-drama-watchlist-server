@@ -19,6 +19,7 @@ import {
   type SharedListDetailsResponse,
   type SharedListInviteResponse,
   type SharedListItemResponse,
+  type SharedListMemberResponse,
   type SharedListResponse,
 } from "../../common/types/shared-list.types";
 import { AddSharedListItemDto } from "./dto/add-shared-list-item.dto";
@@ -28,9 +29,11 @@ import { ReorderSharedListItemsDto } from "./dto/reorder-shared-list-items.dto";
 import {
   SharedListInviteParamsDto,
   SharedListItemParamsDto,
+  SharedListMemberParamsDto,
   SharedListParamsDto,
 } from "./dto/shared-list-params.dto";
 import { UpdateSharedListItemDto } from "./dto/update-shared-list-item.dto";
+import { UpdateSharedListMemberDto } from "./dto/update-shared-list-member.dto";
 import { UpdateSharedListDto } from "./dto/update-shared-list.dto";
 import { SharedListsService } from "./shared-lists.service";
 
@@ -60,6 +63,33 @@ export class SharedListsController {
     @Body() input: CreateSharedListInviteDto,
   ): Promise<SharedListInviteResponse> {
     return this.service.createInvite(session.user.id, params.listId, input);
+  }
+
+  @Patch(":listId/members/:memberUserId")
+  updateMember(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: SharedListMemberParamsDto,
+    @Body() input: UpdateSharedListMemberDto,
+  ): Promise<SharedListMemberResponse> {
+    return this.service.updateMember(
+      session.user.id,
+      params.listId,
+      params.memberUserId,
+      input,
+    );
+  }
+
+  @Delete(":listId/members/:memberUserId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeMember(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: SharedListMemberParamsDto,
+  ): Promise<void> {
+    return this.service.removeMember(
+      session.user.id,
+      params.listId,
+      params.memberUserId,
+    );
   }
 
   @Post(":listId/items")
@@ -138,11 +168,11 @@ export class SharedListsController {
 export class SharedListInvitesController {
   constructor(private readonly service: SharedListsService) {}
 
-  @Post(":token/accept")
+  @Post(":identifier/accept")
   accept(
     @Session() session: UserSession<DramaWatchAuth>,
     @Param() params: SharedListInviteParamsDto,
   ): Promise<SharedListDetailsResponse> {
-    return this.service.acceptInvite(session.user.id, params.token);
+    return this.service.acceptInvite(session.user.id, params.identifier);
   }
 }

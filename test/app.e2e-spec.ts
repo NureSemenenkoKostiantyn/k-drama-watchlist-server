@@ -2129,6 +2129,48 @@ describe("application (e2e)", () => {
       ).body as unknown,
       "Second shared-list media",
     );
+    expect(firstMedia).toMatchObject({ id: "tv:1" });
+    expect(secondMedia).toMatchObject({ id: "tv:2" });
+    const { database: sharedListDatabase } =
+      await databaseService.getNativeConnection();
+    const mediaSnapshotTime = new Date();
+    const [firstStoredMedia, secondStoredMedia] = await Promise.all([
+      sharedListDatabase.collection("media").findOneAndUpdate(
+        { mediaType: "tv", tmdbId: 1 },
+        {
+          $set: {
+            title: "Goblin",
+            originalTitle: "도깨비",
+            originCountry: ["KR"],
+            genreIds: [18],
+            lastSyncedAt: mediaSnapshotTime,
+            updatedAt: mediaSnapshotTime,
+          },
+          $setOnInsert: { createdAt: mediaSnapshotTime },
+        },
+        { upsert: true, returnDocument: "after" },
+      ),
+      sharedListDatabase.collection("media").findOneAndUpdate(
+        { mediaType: "tv", tmdbId: 2 },
+        {
+          $set: {
+            title: "Crash Landing on You",
+            originalTitle: "사랑의 불시착",
+            originCountry: ["KR"],
+            genreIds: [18],
+            lastSyncedAt: mediaSnapshotTime,
+            updatedAt: mediaSnapshotTime,
+          },
+          $setOnInsert: { createdAt: mediaSnapshotTime },
+        },
+        { upsert: true, returnDocument: "after" },
+      ),
+    ]);
+    if (!firstStoredMedia || !secondStoredMedia) {
+      throw new Error("Shared-list media snapshots were not persisted.");
+    }
+    const firstMediaId = firstStoredMedia._id.toHexString();
+    const secondMediaId = secondStoredMedia._id.toHexString();
     const list = readObject(
       (
         await request(server)
@@ -2151,7 +2193,7 @@ describe("application (e2e)", () => {
         await request(server)
           .post(`/api/lists/${listId}/invites`)
           .set("Cookie", authenticatedCookie)
-          .send({ role: "editor" })
+          .send({ username: "other_search_test", role: "editor" })
           .expect(201)
       ).body as unknown,
       "Shared-list invite",
@@ -2162,9 +2204,69 @@ describe("application (e2e)", () => {
     );
     const token = new URL(acceptUrl).pathname.split("/").at(-1);
     expect(token).toHaveLength(43);
+    const inviteId = readString(invite["id"], "Shared-list invitation ID");
+    expect(invite).toMatchObject({
+      id: inviteId,
+      role: "editor",
+      target: { username: "other_search_test" },
+    });
+
+    const refreshedInvite = readObject(
+      (
+        await request(server)
+          .post(`/api/lists/${listId}/invites`)
+          .set("Cookie", authenticatedCookie)
+          .send({ username: "other_search_test", role: "editor" })
+          .expect(201)
+      ).body as unknown,
+      "Refreshed shared-list invite",
+    );
+    expect(refreshedInvite["id"]).toBe(inviteId);
+    const refreshedToken = new URL(
+      readString(refreshedInvite["acceptUrl"], "Refreshed invitation URL"),
+    ).pathname.split("/").at(-1);
+    expect(refreshedToken).toHaveLength(43);
 
     await request(server)
       .post(`/api/list-invites/${token}/accept`)
+      .set("Cookie", otherUserCookie)
+      .expect(400);
+
+    await request(server)
+      .post(`/api/list-invites/${refreshedToken}/accept`)
+      .set("Cookie", authenticatedCookie)
+      .expect(400)
+      .expect({
+        error: {
+          code: "INVITE_INVALID",
+          message: "This shared-list invitation is invalid or expired.",
+        },
+      });
+
+    await request(server)
+      .get("/api/notifications")
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        const items = readObjectArray(
+          readObject(response.body as unknown, "Invitation notifications")["items"],
+          "Invitation notification items",
+        );
+        const invitation = items.find(
+          (entry) => entry["type"] === "shared_list_invite",
+        );
+        expect(
+          items.filter((entry) => entry["type"] === "shared_list_invite"),
+        ).toHaveLength(1);
+        expect(invitation).toMatchObject({
+          type: "shared_list_invite",
+          entityId: inviteId,
+          actor: { username: "search_test" },
+        });
+      });
+
+    const acceptResponse = await request(server)
+      .post(`/api/list-invites/${inviteId}/accept`)
       .set("Cookie", otherUserCookie)
       .expect(201)
       .expect((response: Response) => {
@@ -2177,10 +2279,48 @@ describe("application (e2e)", () => {
           ],
         });
       });
+    const acceptedMembers = readObjectArray(
+      readObject(acceptResponse.body as unknown, "Accepted shared list")["members"],
+      "Accepted shared-list members",
+    );
+    const ownerMember = acceptedMembers.find(
+      (member) => readObject(member, "Shared-list member")["role"] === "owner",
+    );
+    const editorMember = acceptedMembers.find(
+      (member) => readObject(member, "Shared-list member")["role"] === "editor",
+    );
+    const ownerUserId = readString(
+      readObject(
+        readObject(ownerMember, "Shared-list owner member")["user"],
+        "Shared-list owner user",
+      )["id"],
+      "Shared-list owner user ID",
+    );
+    const editorUserId = readString(
+      readObject(
+        readObject(editorMember, "Shared-list editor member")["user"],
+        "Shared-list editor user",
+      )["id"],
+      "Shared-list editor user ID",
+    );
 
     await request(server)
-      .post(`/api/list-invites/${token}/accept`)
-      .set("Cookie", authenticatedCookie)
+      .get("/api/notifications")
+      .set("Cookie", otherUserCookie)
+      .expect(200)
+      .expect((response: Response) => {
+        const items = readObjectArray(
+          readObject(response.body as unknown, "Settled invitation notifications")["items"],
+          "Settled invitation notification items",
+        );
+        expect(
+          items.find((entry) => entry["entityId"] === inviteId),
+        ).toMatchObject({ type: "shared_list_invite", isRead: true });
+      });
+
+    await request(server)
+      .post(`/api/list-invites/${refreshedToken}/accept`)
+      .set("Cookie", otherUserCookie)
       .expect(400)
       .expect({
         error: {
@@ -2195,7 +2335,7 @@ describe("application (e2e)", () => {
           .post(`/api/lists/${listId}/items`)
           .set("Cookie", otherUserCookie)
           .send({
-            mediaId: readString(firstMedia["id"], "First media ID"),
+            mediaId: firstMediaId,
             note: "Start here",
             groupStatus: "watching",
             groupProgress: { currentSeason: 1, currentEpisode: 2 },
@@ -2209,7 +2349,7 @@ describe("application (e2e)", () => {
         await request(server)
           .post(`/api/lists/${listId}/items`)
           .set("Cookie", authenticatedCookie)
-          .send({ mediaId: readString(secondMedia["id"], "Second media ID") })
+          .send({ mediaId: secondMediaId })
           .expect(201)
       ).body as unknown,
       "Second shared-list item",
@@ -2220,7 +2360,7 @@ describe("application (e2e)", () => {
     await request(server)
       .post(`/api/lists/${listId}/items`)
       .set("Cookie", otherUserCookie)
-      .send({ mediaId: readString(firstMedia["id"], "First media ID") })
+      .send({ mediaId: firstMediaId })
       .expect(409)
       .expect({
         error: {
@@ -2328,7 +2468,63 @@ describe("application (e2e)", () => {
         expect(
           readObject(replyNotification?.["actor"], "Reply notification actor"),
         ).toMatchObject({ username: "other_search_test" });
+        expect(items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              type: "shared_item_updated",
+              entityId: listId,
+            }),
+          ]),
+        );
       });
+
+    await request(server)
+      .patch(`/api/lists/${listId}/members/${ownerUserId}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ role: "viewer" })
+      .expect(404);
+
+    await request(server)
+      .patch(`/api/lists/${listId}/members/${ownerUserId}`)
+      .set("Cookie", otherUserCookie)
+      .send({ role: "viewer" })
+      .expect(403);
+
+    await request(server)
+      .patch(`/api/lists/${listId}/members/${editorUserId}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ role: "commenter" })
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          role: "commenter",
+          user: { id: editorUserId },
+        });
+      });
+
+    await request(server)
+      .patch(`/api/lists/${listId}/items/${firstItemId}`)
+      .set("Cookie", otherUserCookie)
+      .send({ note: "Commenters cannot edit items." })
+      .expect(403);
+
+    await request(server)
+      .post(`/api/lists/${listId}/items/${firstItemId}/comments`)
+      .set("Cookie", otherUserCookie)
+      .send({ body: "Commenters can still join the discussion." })
+      .expect(201);
+
+    await request(server)
+      .patch(`/api/lists/${listId}/members/${editorUserId}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ role: "viewer" })
+      .expect(200);
+
+    await request(server)
+      .post(`/api/lists/${listId}/items/${firstItemId}/comments`)
+      .set("Cookie", otherUserCookie)
+      .send({ body: "Viewers cannot comment." })
+      .expect(403);
 
     await request(server)
       .patch(`/api/lists/${listId}`)
@@ -2345,7 +2541,7 @@ describe("application (e2e)", () => {
           expect.arrayContaining([
             expect.objectContaining({
               id: listId,
-              role: "editor",
+              role: "viewer",
               itemCount: 2,
             }),
           ]),
@@ -2353,9 +2549,19 @@ describe("application (e2e)", () => {
       });
 
     await request(server)
+      .delete(`/api/lists/${listId}/members/${editorUserId}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(204);
+
+    await request(server)
+      .get(`/api/lists/${listId}`)
+      .set("Cookie", otherUserCookie)
+      .expect(404);
+
+    await request(server)
       .delete(`/api/lists/${listId}`)
       .set("Cookie", otherUserCookie)
-      .expect(403);
+      .expect(404);
     await request(server)
       .delete(`/api/lists/${listId}`)
       .set("Cookie", authenticatedCookie)

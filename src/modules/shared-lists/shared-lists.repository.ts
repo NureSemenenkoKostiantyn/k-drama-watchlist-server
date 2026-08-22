@@ -66,6 +66,7 @@ export interface StoredSharedListInvite {
   _id: Types.ObjectId;
   listId: Types.ObjectId;
   createdByUserId: Types.ObjectId;
+  targetUserId?: Types.ObjectId;
   tokenHash: string;
   role: Exclude<SharedListRole, SharedListRole.Owner>;
   expiresAt: Date;
@@ -262,29 +263,56 @@ export class SharedListsRepository {
     );
   }
 
-  async createInvite(
+  async upsertInvite(
     listId: Types.ObjectId,
     createdByUserId: Types.ObjectId,
+    targetUserId: Types.ObjectId,
     tokenHash: string,
     role: Exclude<SharedListRole, SharedListRole.Owner>,
     expiresAt: Date,
   ): Promise<StoredSharedListInvite> {
-    const document = await this.inviteModel.create({
-      listId,
-      createdByUserId,
-      tokenHash,
-      role,
-      expiresAt,
-    });
+    const document = await this.inviteModel
+      .findOneAndUpdate(
+        { listId, targetUserId },
+        {
+          $set: {
+            createdByUserId,
+            tokenHash,
+            role,
+            expiresAt,
+            createdAt: new Date(),
+          },
+          $setOnInsert: { listId, targetUserId },
+        },
+        { upsert: true, returnDocument: "after", runValidators: true },
+      )
+      .exec();
     return mapInvite(document);
   }
 
   async findInviteByTokenHash(
     tokenHash: string,
+    targetUserId: Types.ObjectId,
     session?: ClientSession,
   ): Promise<StoredSharedListInvite | null> {
     const query = this.inviteModel.findOne({
       tokenHash,
+      targetUserId,
+      expiresAt: { $gt: new Date() },
+    });
+    if (session) query.session(session);
+    const document = await query.exec();
+    return document ? mapInvite(document) : null;
+  }
+
+  async findInviteById(
+    inviteId: Types.ObjectId,
+    targetUserId: Types.ObjectId,
+    session?: ClientSession,
+  ): Promise<StoredSharedListInvite | null> {
+    const query = this.inviteModel.findOne({
+      _id: inviteId,
+      targetUserId,
       expiresAt: { $gt: new Date() },
     });
     if (session) query.session(session);
@@ -307,6 +335,52 @@ export class SharedListsRepository {
     if (session) query.session(session);
     const document = await query.exec();
     return document ? mapList(document) : null;
+  }
+
+  async updateMember(
+    ownerId: Types.ObjectId,
+    listId: Types.ObjectId,
+    memberUserId: Types.ObjectId,
+    role: Exclude<SharedListRole, SharedListRole.Owner>,
+  ): Promise<StoredSharedList | null> {
+    const document = await this.listModel
+      .findOneAndUpdate(
+        {
+          _id: listId,
+          ownerId,
+          members: {
+            $elemMatch: {
+              userId: memberUserId,
+              role: { $ne: SharedListRole.Owner },
+            },
+          },
+        },
+        { $set: { "members.$.role": role } },
+        { returnDocument: "after", runValidators: true },
+      )
+      .exec();
+    return document ? mapList(document) : null;
+  }
+
+  async removeMember(
+    ownerId: Types.ObjectId,
+    listId: Types.ObjectId,
+    memberUserId: Types.ObjectId,
+  ): Promise<boolean> {
+    const result = await this.listModel
+      .updateOne(
+        { _id: listId, ownerId },
+        {
+          $pull: {
+            members: {
+              userId: memberUserId,
+              role: { $ne: SharedListRole.Owner },
+            },
+          },
+        },
+      )
+      .exec();
+    return result.modifiedCount === 1;
   }
 
   async deleteInvite(inviteId: Types.ObjectId, session?: ClientSession): Promise<void> {
@@ -380,6 +454,9 @@ function mapInvite(
     _id: document._id,
     listId: document.listId,
     createdByUserId: document.createdByUserId,
+    ...(document.targetUserId === undefined
+      ? {}
+      : { targetUserId: document.targetUserId }),
     tokenHash: document.tokenHash,
     role: document.role,
     expiresAt: document.expiresAt,
