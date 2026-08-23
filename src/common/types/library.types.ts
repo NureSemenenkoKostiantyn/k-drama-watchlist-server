@@ -1,4 +1,5 @@
 import { type MediaDetails } from "./media.types";
+import { type PublicUserProfileResponse } from "./user.types";
 
 export enum WatchStatus {
   ToWatch = "to_watch",
@@ -46,9 +47,16 @@ export interface LibraryEntryResponse {
   priorityLaneId?: string;
   priorityPosition?: number;
   playbackPreference?: PlaybackPreference;
+  suggestedBy?: PublicUserProfileResponse;
+  sharedLists: LibrarySharedListReference[];
   startedAt?: string;
   completedAt?: string;
   lastProgressAt?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LibrarySharedListReference {
+  id: string;
+  title: string;
 }

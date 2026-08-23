@@ -9,6 +9,7 @@ import {
   type StoredMedia,
 } from "../media/media.repository";
 import { type MediaService } from "../media/media.service";
+import { type LibraryContextService } from "./library-context.service";
 import {
   type LibraryRepository,
   type StoredUserMedia,
@@ -40,6 +41,7 @@ describe("LibraryService", () => {
   const getDetails = jest.fn<MediaService["getDetails"]>();
   const resolveOwnedIds =
     jest.fn<CategoriesService["resolveOwnedIds"]>();
+  const resolveContext = jest.fn<LibraryContextService["resolve"]>();
   const service = new LibraryService(
     {
       findAll,
@@ -65,6 +67,9 @@ describe("LibraryService", () => {
     {
       resolveOwnedIds,
     } as unknown as CategoriesService,
+    {
+      resolve: resolveContext,
+    } as unknown as LibraryContextService,
   );
 
   const userId = new Types.ObjectId();
@@ -96,6 +101,39 @@ describe("LibraryService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resolveContext.mockResolvedValue(new Map());
+  });
+
+  it("returns suggestion and shared-list context with library entries", async () => {
+    const suggesterId = new Types.ObjectId();
+    const contextualEntry = { ...entry, suggestedByUserId: suggesterId };
+    findAll.mockResolvedValue([contextualEntry]);
+    findByIds.mockResolvedValue([media]);
+    resolveContext.mockResolvedValue(
+      new Map([
+        [
+          entryId.toHexString(),
+          {
+            suggestedBy: {
+              id: suggesterId.toHexString(),
+              username: "jiwoo",
+              displayUsername: "Jiwoo",
+              name: "Jiwoo Kim",
+              joinedAt: now.toISOString(),
+            },
+            sharedLists: [{ id: "list-1", title: "Weekend picks" }],
+          },
+        ],
+      ]),
+    );
+
+    await expect(service.list(userId.toHexString())).resolves.toMatchObject([
+      {
+        id: entryId.toHexString(),
+        suggestedBy: { id: suggesterId.toHexString(), username: "jiwoo" },
+        sharedLists: [{ id: "list-1", title: "Weekend picks" }],
+      },
+    ]);
   });
 
   it("reuses an existing shared media document for another user", async () => {

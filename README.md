@@ -19,6 +19,8 @@ The current backend foundation provides:
 - Global NestJS request throttling with a tighter per-user TMDB search limit.
 - A personal library API backed by one shared media snapshot per TMDB title and separate
   owner-scoped user relationships.
+- Personal-library responses enriched with accepted-suggestion provenance and the current user's
+  accessible shared-list memberships for relationship-aware filtering.
 - Owner-scoped episode progress, half-point ratings, private descriptions, and audio/subtitle
   preferences.
 - Owner-scoped custom category CRUD and multi-category assignment for personal library entries.
@@ -368,6 +370,11 @@ completed episode count changes. Ratings accept half-point values from 1 through
 remain private and are limited to 5,000 characters. The generic library update endpoint also accepts
 an ordered, duplicate-free array of category IDs and verifies that every category belongs to the
 authenticated user.
+
+Library responses expose a suggestion source only when the entry was created by accepting a friend
+suggestion, using that sender's public profile projection. They also include compact ID/title
+references only for shared lists the authenticated user currently owns or belongs to. These fields
+support client-side relationship filters without exposing unrelated lists or private user data.
 
 ## Categories
 
