@@ -8,11 +8,13 @@ import {
 import { UsersService } from "./users.service";
 
 describe("UsersService", () => {
+  const findById = jest.fn<UsersRepository["findById"]>();
   const findByUsername =
     jest.fn<UsersRepository["findByUsername"]>();
   const findSearchCandidates =
     jest.fn<UsersRepository["findSearchCandidates"]>();
   const service = new UsersService({
+    findById,
     findByUsername,
     findSearchCandidates,
   } as unknown as UsersRepository);
@@ -31,10 +33,10 @@ describe("UsersService", () => {
   });
 
   it("returns only the public profile contract", async () => {
-    findByUsername.mockResolvedValue(user);
+    findById.mockResolvedValue(user);
 
     await expect(
-      service.getByUsername("DAHYUN.FAN"),
+      service.getById(user._id.toHexString()),
     ).resolves.toEqual({
       id: user._id.toHexString(),
       username: "dahyun.fan",
@@ -42,6 +44,13 @@ describe("UsersService", () => {
       name: "Dahyun Fan",
       joinedAt: joinedAt.toISOString(),
     });
+    expect(findById).toHaveBeenCalledWith(user._id);
+  });
+
+  it("continues resolving usernames for username-targeted actions", async () => {
+    findByUsername.mockResolvedValue(user);
+
+    await expect(service.resolveByUsername("DAHYUN.FAN")).resolves.toBe(user);
     expect(findByUsername).toHaveBeenCalledWith("dahyun.fan");
   });
 
@@ -70,11 +79,11 @@ describe("UsersService", () => {
     );
   });
 
-  it("returns a stable not-found error for unknown usernames", async () => {
-    findByUsername.mockResolvedValue(null);
+  it("returns a stable not-found error for unknown user IDs", async () => {
+    findById.mockResolvedValue(null);
 
     await expect(
-      service.getByUsername("missing_user"),
+      service.getById(new ObjectId().toHexString()),
     ).rejects.toMatchObject({
       code: "NOT_FOUND",
       status: 404,

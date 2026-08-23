@@ -24,9 +24,9 @@ export class PublicLibraryService {
     private readonly friendsService: FriendsService,
   ) {}
 
-  async getByUsername(
+  async getByUserId(
     viewerUserId: string | undefined,
-    username: string,
+    userId: string,
     query: PublicLibraryQuery,
   ): Promise<PublicLibraryResponse> {
     if (
@@ -37,7 +37,7 @@ export class PublicLibraryService {
       throw invalidYearRange();
     }
 
-    const owner = await this.usersService.resolveByUsername(username);
+    const owner = await this.usersService.resolveById(userId);
     const viewerId =
       viewerUserId === undefined ? undefined : toObjectId(viewerUserId);
     const isOwner = viewerId?.equals(owner._id) ?? false;
