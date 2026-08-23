@@ -25,6 +25,7 @@ export interface SharedListResponse {
   title: string;
   description?: string;
   visibility: SharedListVisibility;
+  publicSlug?: string;
   role: SharedListRole;
   itemCount: number;
   createdAt: string;
@@ -58,6 +59,29 @@ export interface SharedListItemResponse {
 export interface SharedListDetailsResponse extends SharedListResponse {
   members: SharedListMemberResponse[];
   items: SharedListItemResponse[];
+}
+
+export interface PublicSharedListItemResponse {
+  position: number;
+  media: Omit<MediaDetails, "id">;
+  addedBy?: PublicUserProfileResponse;
+  note?: string;
+  groupStatus?: SharedListItemStatus;
+  groupProgress?: SharedListProgressResponse;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicSharedListDetailsResponse {
+  title: string;
+  description?: string;
+  visibility: SharedListVisibility.Unlisted | SharedListVisibility.Public;
+  publicSlug: string;
+  itemCount: number;
+  members: SharedListMemberResponse[];
+  items: PublicSharedListItemResponse[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SharedListInviteResponse {

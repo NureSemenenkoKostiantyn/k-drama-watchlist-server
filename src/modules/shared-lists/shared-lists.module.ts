@@ -9,6 +9,7 @@ import {
 } from "../comments/comment-model.provider";
 import { sharedListModelProviders } from "./shared-list-model.providers";
 import {
+  PublicSharedListsController,
   SharedListInvitesController,
   SharedListsController,
 } from "./shared-lists.controller";
@@ -17,7 +18,11 @@ import { SharedListsService } from "./shared-lists.service";
 
 @Module({
   imports: [MediaModule, NotificationsModule, UsersModule],
-  controllers: [SharedListsController, SharedListInvitesController],
+  controllers: [
+    SharedListsController,
+    SharedListInvitesController,
+    PublicSharedListsController,
+  ],
   providers: [
     commentModelProvider,
     ...sharedListModelProviders,

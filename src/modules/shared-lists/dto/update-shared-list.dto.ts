@@ -1,11 +1,14 @@
 import { Transform } from "class-transformer";
 import {
+  IsEnum,
   IsOptional,
   IsString,
   Length,
   MaxLength,
   ValidateIf,
 } from "class-validator";
+
+import { SharedListVisibility } from "../../../common/types/shared-list.types";
 
 import { trimString } from "./shared-list-text.transform";
 
@@ -22,4 +25,8 @@ export class UpdateSharedListDto {
   @IsString()
   @MaxLength(2_000)
   description?: string | null;
+
+  @IsOptional()
+  @IsEnum(SharedListVisibility)
+  visibility?: SharedListVisibility;
 }

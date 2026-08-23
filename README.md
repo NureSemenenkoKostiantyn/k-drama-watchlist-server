@@ -25,8 +25,8 @@ The current backend foundation provides:
 - Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
 - Private shared wheels with owner, editor, and viewer roles, weighted candidates, server-side
   selection, and attributed spin history.
-- Private shared lists with targeted one-time role invitations, ordered shared-media items, notes,
-  group lifecycle state, and group progress.
+- Shared lists with targeted one-time role invitations, ordered shared-media items, notes, group
+  lifecycle state, group progress, and revocable public or unlisted read-only links.
 - Plain-text shared-list comments with replies, spoiler flags, soft deletion, and comment/reply
   notifications.
 - Owner-only shared-list member role/removal controls and list-linked shared-item-update
@@ -45,8 +45,8 @@ The current backend foundation provides:
 
 Public profiles, username discovery, friendship management, friend suggestions, notifications, safe
 friend context, reusable settings, visibility-controlled friend libraries, and accepted-friend
-wheel sharing, private shared lists, shared-list discussions, and shared-list member management are
-implemented. Public/unlisted access remains deferred.
+wheel sharing, shared lists, shared-list discussions, member management, and public-safe list links
+are implemented. Public/unlisted wheel access remains deferred.
 Authentication emails are delivered through Resend.
 
 ## Prerequisites
@@ -438,7 +438,7 @@ and can spin; viewers can inspect candidates and attributed shared history. Only
 wheel settings, manage members, reset history, or delete the wheel. Public and unlisted wheel links
 remain deferred.
 
-## Private shared lists
+## Shared lists
 
 Authenticated users can create lists and access lists shared with them through:
 
@@ -448,6 +448,7 @@ POST   /api/lists
 GET    /api/lists/:listId
 PATCH  /api/lists/:listId
 DELETE /api/lists/:listId
+GET    /api/public/lists/:publicSlug
 
 POST   /api/lists/:listId/items
 PATCH  /api/lists/:listId/items/:itemId
@@ -472,6 +473,10 @@ comment. Comment and reply notifications link back to the list. Only owners can 
 list, create invitations, change non-owner roles, or remove non-owner members; the owner membership
 cannot be changed or removed. Item additions, edits, removals, and reorders notify every other
 member and link back to the list. List deletion cascades to items, comments, and unused invitations.
+Owners can switch a list between private, unlisted, and public. Unlisted and public modes issue a
+stable random link; switching back to private revokes it. The anonymous endpoint is read-only and
+omits internal list, item, and MongoDB media IDs as well as comments and authentication data.
+Public discovery is not implemented yet, so public and unlisted differ only in declared intent.
 
 ## Container
 

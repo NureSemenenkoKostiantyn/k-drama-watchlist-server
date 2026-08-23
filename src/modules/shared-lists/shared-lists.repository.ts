@@ -76,6 +76,8 @@ export interface StoredSharedListInvite {
 export interface SharedListUpdate {
   title?: string;
   description?: string | null;
+  visibility?: SharedListVisibility;
+  publicSlug?: string | null;
 }
 
 export interface SharedListItemUpdate {
@@ -134,6 +136,18 @@ export class SharedListsRepository {
     });
     if (session) query.session(session);
     const document = await query.exec();
+    return document ? mapList(document) : null;
+  }
+
+  async findByPublicSlug(publicSlug: string): Promise<StoredSharedList | null> {
+    const document = await this.listModel
+      .findOne({
+        publicSlug,
+        visibility: {
+          $in: [SharedListVisibility.Unlisted, SharedListVisibility.Public],
+        },
+      })
+      .exec();
     return document ? mapList(document) : null;
   }
 

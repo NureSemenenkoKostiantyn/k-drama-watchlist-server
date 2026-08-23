@@ -2548,6 +2548,78 @@ describe("application (e2e)", () => {
         );
       });
 
+    const unlistedList = readObject(
+      (
+        await request(server)
+          .patch(`/api/lists/${listId}`)
+          .set("Cookie", authenticatedCookie)
+          .send({ visibility: "unlisted" })
+          .expect(200)
+      ).body as unknown,
+      "Unlisted shared list",
+    );
+    const publicSlug = readString(
+      unlistedList["publicSlug"],
+      "Shared-list public slug",
+    );
+    expect(publicSlug).toHaveLength(16);
+
+    await request(server)
+      .get(`/api/public/lists/${publicSlug}`)
+      .expect(200)
+      .expect((response: Response) => {
+        const publicList = readObject(
+          response.body as unknown,
+          "Public shared-list response",
+        );
+        expect(publicList).toMatchObject({
+          title: "Weekend dramas",
+          visibility: "unlisted",
+          publicSlug,
+          itemCount: 2,
+        });
+        expect(publicList).not.toHaveProperty("id");
+        const publicItems = readObjectArray(
+          publicList["items"],
+          "Public shared-list items",
+        );
+        expect(publicItems).toHaveLength(2);
+        for (const item of publicItems) {
+          expect(item).not.toHaveProperty("id");
+          expect(item).not.toHaveProperty("mediaId");
+          expect(readObject(item["media"], "Public shared-list media")).not.toHaveProperty(
+            "id",
+          );
+        }
+        expect(JSON.stringify(publicList)).not.toContain("@example.com");
+      });
+
+    await request(server)
+      .patch(`/api/lists/${listId}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ visibility: "public" })
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          visibility: "public",
+          publicSlug,
+        });
+      });
+
+    await request(server)
+      .patch(`/api/lists/${listId}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ visibility: "private" })
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({ visibility: "private" });
+        expect(response.body).not.toHaveProperty("publicSlug");
+      });
+
+    await request(server)
+      .get(`/api/public/lists/${publicSlug}`)
+      .expect(404);
+
     await request(server)
       .delete(`/api/lists/${listId}/members/${editorUserId}`)
       .set("Cookie", authenticatedCookie)
