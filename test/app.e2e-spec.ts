@@ -1565,6 +1565,42 @@ describe("application (e2e)", () => {
       .set("Cookie", otherUserCookie)
       .expect(200);
 
+    const currentLibraryResponse = await request(server)
+      .get("/api/library")
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+    const existingFirstEntry = readObjectArray(
+      currentLibraryResponse.body as unknown,
+      "Visibility test owner library",
+    ).find((entry) => {
+      const media = readObject(
+        readObject(entry, "Visibility test library entry")["media"],
+        "Visibility test library media",
+      );
+      return media["id"] === "tv:1";
+    });
+    const firstLibraryEntry =
+      existingFirstEntry === undefined
+        ? readLibraryEntry(
+            (
+              await request(server)
+                .post("/api/library")
+                .set("Cookie", otherUserCookie)
+                .send({
+                  mediaType: "tv",
+                  tmdbId: 1,
+                  status: "watching",
+                })
+                .expect(201)
+            ).body as unknown,
+          )
+        : readLibraryEntry(existingFirstEntry);
+    await request(server)
+      .patch(`/api/library/${firstLibraryEntry.id}/rating`)
+      .set("Cookie", otherUserCookie)
+      .send({ rating: 8.5 })
+      .expect(200);
+
     const secondLibraryEntry = readLibraryEntry(
       (
         await request(server)
@@ -1752,6 +1788,11 @@ describe("application (e2e)", () => {
 
     await request(server)
       .delete(`/api/library/${secondLibraryEntry.id}`)
+      .set("Cookie", otherUserCookie)
+      .expect(204);
+
+    await request(server)
+      .delete(`/api/library/${firstLibraryEntry.id}`)
       .set("Cookie", otherUserCookie)
       .expect(204);
 
@@ -2052,6 +2093,89 @@ describe("application (e2e)", () => {
           },
         ]);
       });
+
+    const unlistedWheel = readObject(
+      (
+        await request(server)
+          .patch(`/api/wheels/${wheel.id}`)
+          .set("Cookie", authenticatedCookie)
+          .send({ visibility: "unlisted" })
+          .expect(200)
+      ).body as unknown,
+      "Unlisted wheel",
+    );
+    const publicSlug = readString(
+      unlistedWheel["publicSlug"],
+      "Wheel public slug",
+    );
+    expect(publicSlug).toHaveLength(16);
+
+    await request(server)
+      .get(`/api/public/wheels/${publicSlug}`)
+      .expect(200)
+      .expect((response: Response) => {
+        const publicWheel = readObject(
+          response.body as unknown,
+          "Public wheel response",
+        );
+        expect(publicWheel).toMatchObject({
+          title: "Friday night",
+          visibility: "unlisted",
+          publicSlug,
+          itemCount: 1,
+          enabledItemCount: 1,
+        });
+        expect(publicWheel).not.toHaveProperty("id");
+        const publicItems = readObjectArray(
+          publicWheel["items"],
+          "Public wheel items",
+        );
+        expect(publicItems).toHaveLength(1);
+        expect(publicItems[0]).not.toHaveProperty("id");
+        expect(publicItems[0]).not.toHaveProperty("mediaId");
+        expect(
+          readObject(publicItems[0]?.["media"], "Public wheel media"),
+        ).not.toHaveProperty("id");
+        const publicHistory = readObjectArray(
+          publicWheel["history"],
+          "Public wheel history",
+        );
+        expect(publicHistory).toHaveLength(1);
+        expect(publicHistory[0]).not.toHaveProperty("spinId");
+        const selectedItem = readObject(
+          publicHistory[0]?.["selectedItem"],
+          "Public wheel selected item",
+        );
+        expect(selectedItem).not.toHaveProperty("wheelItemId");
+        expect(selectedItem).not.toHaveProperty("mediaId");
+        expect(JSON.stringify(publicWheel)).not.toContain("@example.com");
+      });
+
+    await request(server)
+      .patch(`/api/wheels/${wheel.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ visibility: "public" })
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({
+          visibility: "public",
+          publicSlug,
+        });
+      });
+
+    await request(server)
+      .patch(`/api/wheels/${wheel.id}`)
+      .set("Cookie", authenticatedCookie)
+      .send({ visibility: "private" })
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.body).toMatchObject({ visibility: "private" });
+        expect(response.body).not.toHaveProperty("publicSlug");
+      });
+
+    await request(server)
+      .get(`/api/public/wheels/${publicSlug}`)
+      .expect(404);
 
     await request(server)
       .patch(`/api/wheels/${wheel.id}/members/${memberUserId}`)

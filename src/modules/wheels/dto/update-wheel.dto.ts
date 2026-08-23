@@ -10,7 +10,10 @@ import {
   MaxLength,
 } from "class-validator";
 
-import { WheelSelectionMode } from "../../../common/types/wheel.types";
+import {
+  WheelSelectionMode,
+  WheelVisibility,
+} from "../../../common/types/wheel.types";
 
 export class UpdateWheelDto {
   @IsOptional()
@@ -28,6 +31,10 @@ export class UpdateWheelDto {
   @IsOptional()
   @IsEnum(WheelSelectionMode)
   selectionMode?: WheelSelectionMode;
+
+  @IsOptional()
+  @IsEnum(WheelVisibility)
+  visibility?: WheelVisibility;
 }
 
 function trimString(params: TransformFnParams): unknown {

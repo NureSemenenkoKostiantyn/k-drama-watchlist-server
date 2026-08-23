@@ -23,8 +23,8 @@ The current backend foundation provides:
   preferences.
 - Owner-scoped custom category CRUD and multi-category assignment for personal library entries.
 - Owner-scoped priority lanes with complete-array lane and to-watch item ordering.
-- Private shared wheels with owner, editor, and viewer roles, weighted candidates, server-side
-  selection, and attributed spin history.
+- Shared wheels with owner, editor, and viewer roles, weighted candidates, server-side selection,
+  attributed spin history, and revocable public or unlisted read-only links.
 - Shared lists with targeted one-time role invitations, ordered shared-media items, notes, group
   lifecycle state, group progress, and revocable public or unlisted read-only links.
 - Plain-text shared-list comments with replies, spoiler flags, soft deletion, and comment/reply
@@ -45,8 +45,8 @@ The current backend foundation provides:
 
 Public profiles, username discovery, friendship management, friend suggestions, notifications, safe
 friend context, reusable settings, visibility-controlled friend libraries, and accepted-friend
-wheel sharing, shared lists, shared-list discussions, member management, and public-safe list links
-are implemented. Public/unlisted wheel access remains deferred.
+wheel sharing, shared lists, shared-list discussions, member management, and public-safe list and
+wheel links are implemented.
 Authentication emails are delivered through Resend.
 
 ## Prerequisites
@@ -414,6 +414,7 @@ POST   /api/wheels
 GET    /api/wheels/:wheelId
 PATCH  /api/wheels/:wheelId
 DELETE /api/wheels/:wheelId
+GET    /api/public/wheels/:publicSlug
 
 POST   /api/wheels/:wheelId/items
 PATCH  /api/wheels/:wheelId/items/:itemId
@@ -436,7 +437,9 @@ spin and history-reset writes use MongoDB Atlas transactions. Owners may share a
 with accepted friends as viewers or editors. Editors can add, change, remove, and reorder candidates
 and can spin; viewers can inspect candidates and attributed shared history. Only owners can change
 wheel settings, manage members, reset history, or delete the wheel. Public and unlisted wheel links
-remain deferred.
+use a stable random slug while enabled and are revoked by switching back to private. The anonymous
+projection includes public-safe candidates, members, and attributed history without internal wheel,
+candidate, spin, or MongoDB media IDs. Anonymous viewers cannot spin or mutate a wheel.
 
 ## Shared lists
 
