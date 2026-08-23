@@ -28,6 +28,7 @@ export interface StoredUserMedia {
   priorityLaneId?: Types.ObjectId;
   priorityPosition?: number;
   playbackPreference?: PlaybackPreference;
+  suggestedByUserId?: Types.ObjectId;
   startedAt?: Date;
   completedAt?: Date;
   lastProgressAt?: Date;
@@ -348,6 +349,9 @@ function mapUserMediaDocument(
                 }),
           },
         }),
+    ...(document.suggestedByUserId === undefined
+      ? {}
+      : { suggestedByUserId: document.suggestedByUserId }),
     ...(document.startedAt === undefined
       ? {}
       : { startedAt: document.startedAt }),

@@ -22,6 +22,10 @@ import { type UpdateLibraryEntryDto } from "./dto/update-library-entry.dto";
 import { type UpdatePlaybackPreferenceDto } from "./dto/update-playback-preference.dto";
 import { type UpdateProgressDto } from "./dto/update-progress.dto";
 import {
+  type LibraryEntryContext,
+  LibraryContextService,
+} from "./library-context.service";
+import {
   LibraryRepository,
   type StoredUserMedia,
 } from "./library.repository";
@@ -33,6 +37,7 @@ export class LibraryService {
     private readonly mediaRepository: MediaRepository,
     private readonly mediaService: MediaService,
     private readonly categoriesService: CategoriesService,
+    private readonly libraryContextService: LibraryContextService,
   ) {}
 
   async list(
@@ -41,9 +46,10 @@ export class LibraryService {
   ): Promise<LibraryEntryResponse[]> {
     const userId = toObjectId(authenticatedUserId);
     const entries = await this.libraryRepository.findAll(userId, status);
-    const media = await this.mediaRepository.findByIds(
-      entries.map((entry) => entry.mediaId),
-    );
+    const [media, contexts] = await Promise.all([
+      this.mediaRepository.findByIds(entries.map((entry) => entry.mediaId)),
+      this.libraryContextService.resolve(userId, entries),
+    ]);
     const mediaById = new Map(
       media.map((item) => [item._id.toHexString(), item]),
     );
@@ -57,7 +63,11 @@ export class LibraryService {
         );
       }
 
-      return toLibraryEntryResponse(entry, item);
+      return toLibraryEntryResponse(
+        entry,
+        item,
+        contexts.get(entry._id.toHexString()),
+      );
     });
   }
 
@@ -94,7 +104,7 @@ export class LibraryService {
         media._id,
         input.status,
       );
-      return toLibraryEntryResponse(entry, media);
+      return this.withMediaAndContext(userId, entry, media);
     } catch (error: unknown) {
       if (isDuplicateKeyError(error)) {
         throw mediaAlreadyInLibrary();
@@ -108,11 +118,12 @@ export class LibraryService {
     authenticatedUserId: string,
     entryId: string,
   ): Promise<LibraryEntryResponse> {
+    const userId = toObjectId(authenticatedUserId);
     const entry = await this.findOwnedEntry(
-      toObjectId(authenticatedUserId),
+      userId,
       new Types.ObjectId(entryId),
     );
-    return this.withMedia(entry);
+    return this.withMedia(userId, entry);
   }
 
   async updateStatus(
@@ -144,7 +155,7 @@ export class LibraryService {
       throw libraryEntryNotFound();
     }
 
-    return this.withMedia(entry);
+    return this.withMedia(userId, entry);
   }
 
   async updateProgress(
@@ -197,7 +208,7 @@ export class LibraryService {
       throw libraryEntryNotFound();
     }
 
-    return toLibraryEntryResponse(entry, media);
+    return this.withContext(userId, entry, media);
   }
 
   async updateRating(
@@ -299,9 +310,35 @@ export class LibraryService {
   }
 
   private async withMedia(
+    userId: Types.ObjectId,
     entry: StoredUserMedia,
   ): Promise<LibraryEntryResponse> {
-    return toLibraryEntryResponse(entry, await this.requireMedia(entry));
+    return this.withMediaAndContext(
+      userId,
+      entry,
+      await this.requireMedia(entry),
+    );
+  }
+
+  private withMediaAndContext(
+    userId: Types.ObjectId,
+    entry: StoredUserMedia,
+    media: StoredMedia,
+  ): Promise<LibraryEntryResponse> {
+    return this.withContext(userId, entry, media);
+  }
+
+  private async withContext(
+    userId: Types.ObjectId,
+    entry: StoredUserMedia,
+    media: StoredMedia,
+  ): Promise<LibraryEntryResponse> {
+    const contexts = await this.libraryContextService.resolve(userId, [entry]);
+    return toLibraryEntryResponse(
+      entry,
+      media,
+      contexts.get(entry._id.toHexString()),
+    );
   }
 
   private async requireMedia(
@@ -335,13 +372,14 @@ export class LibraryService {
       throw libraryEntryNotFound();
     }
 
-    return this.withMedia(entry);
+    return this.withMedia(userId, entry);
   }
 }
 
 function toLibraryEntryResponse(
   entry: StoredUserMedia,
   media: StoredMedia,
+  context?: LibraryEntryContext,
 ): LibraryEntryResponse {
   return {
     id: entry._id.toHexString(),
@@ -351,6 +389,10 @@ function toLibraryEntryResponse(
     categoryIds: entry.categoryIds.map((categoryId) =>
       categoryId.toHexString(),
     ),
+    sharedLists: context?.sharedLists ?? [],
+    ...(context?.suggestedBy === undefined
+      ? {}
+      : { suggestedBy: context.suggestedBy }),
     ...(entry.priorityLaneId === undefined
       ? {}
       : { priorityLaneId: entry.priorityLaneId.toHexString() }),
