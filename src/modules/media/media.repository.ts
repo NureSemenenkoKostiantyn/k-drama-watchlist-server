@@ -125,6 +125,9 @@ export function toMediaDetails(media: StoredMedia): MediaDetails {
     ...(media.firstAirDate === undefined
       ? {}
       : { firstAirDate: media.firstAirDate }),
+    ...(media.releaseStatus === undefined
+      ? {}
+      : { releaseStatus: media.releaseStatus }),
     ...(media.originalLanguage === undefined
       ? {}
       : { originalLanguage: media.originalLanguage }),
@@ -195,6 +198,12 @@ function buildSnapshotUpdate(
     unsetValues,
     "firstAirDate",
     snapshot.firstAirDate,
+  );
+  setOptionalValue(
+    setValues,
+    unsetValues,
+    "releaseStatus",
+    snapshot.releaseStatus,
   );
   setOptionalValue(
     setValues,
@@ -294,6 +303,9 @@ function mapMediaDocument(
     ...(document.firstAirDate === undefined
       ? {}
       : { firstAirDate: document.firstAirDate }),
+    ...(document.releaseStatus === undefined
+      ? {}
+      : { releaseStatus: document.releaseStatus }),
     ...(document.originalLanguage === undefined
       ? {}
       : { originalLanguage: document.originalLanguage }),

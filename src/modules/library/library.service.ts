@@ -81,7 +81,7 @@ export class LibraryService {
       input.tmdbId,
     );
 
-    if (!media) {
+    if (!media || media.releaseStatus === undefined) {
       const details = await this.mediaService.getDetails(
         input.mediaType,
         input.tmdbId,

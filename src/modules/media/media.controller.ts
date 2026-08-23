@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from "@nestjs/common";
+import { Controller, Get, Param, Post } from "@nestjs/common";
 
 import { type MediaDetails } from "../../common/types/media.types";
 import { MediaIdentityParams } from "./dto/media-identity-params.dto";
@@ -16,5 +16,12 @@ export class MediaController {
       params.mediaType,
       params.tmdbId,
     );
+  }
+
+  @Post(":mediaType/:tmdbId/refresh")
+  refresh(
+    @Param() params: MediaIdentityParams,
+  ): Promise<MediaDetails> {
+    return this.mediaService.refresh(params.mediaType, params.tmdbId);
   }
 }

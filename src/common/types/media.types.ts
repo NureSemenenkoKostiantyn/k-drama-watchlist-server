@@ -9,6 +9,13 @@ export enum SearchMediaType {
   Tv = MediaType.Tv,
 }
 
+export enum MediaReleaseStatus {
+  Airing = "airing",
+  Upcoming = "upcoming",
+  Ended = "ended",
+  Unknown = "unknown",
+}
+
 export interface MediaImageData {
   backdropPath?: string;
   backdropUrl?: string;
@@ -42,6 +49,7 @@ export interface MediaSeason {
 }
 
 export interface MediaDetails extends MediaSummary {
+  releaseStatus?: MediaReleaseStatus;
   runtimeMinutes?: number;
   totalEpisodes?: number;
   totalSeasons?: number;

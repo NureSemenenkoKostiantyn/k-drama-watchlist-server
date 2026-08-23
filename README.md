@@ -213,6 +213,12 @@ Authenticated users can search TMDB through `GET /api/search` and retrieve norma
 `GET /api/media/:mediaType/:tmdbId`. The browser never receives the TMDB access token or calls TMDB
 directly.
 
+Detail normalization groups TMDB production states into `airing`, `upcoming`, `ended`, or `unknown`
+for consistent TV and movie filtering. `POST /api/media/:mediaType/:tmdbId/refresh` fetches current
+details and updates the shared media snapshot. Older snapshots without this field remain valid and
+resolve to `unknown` in the library interface until refreshed; reusing one while adding a title also
+backfills it automatically.
+
 Search supports a required `q` value, `type=all|tv|movie`, and one-based `page`. A two-letter
 `country` filter is available for TV searches; the K-drama UI uses `type=tv&country=KR`. Search
 responses omit person results, expose stable `tv:<tmdbId>` or `movie:<tmdbId>` identities, and retain
