@@ -6,6 +6,8 @@ import {
   MediaReleaseStatus,
   MediaType,
 } from "../../common/types/media.types";
+import { ActivityType } from "../../common/types/activity.types";
+import { type ActivityService } from "../activity/activity.service";
 import { type CategoriesService } from "../categories/categories.service";
 import {
   type MediaRepository,
@@ -45,6 +47,7 @@ describe("LibraryService", () => {
   const resolveOwnedIds =
     jest.fn<CategoriesService["resolveOwnedIds"]>();
   const resolveContext = jest.fn<LibraryContextService["resolve"]>();
+  const publishActivity = jest.fn<ActivityService["publish"]>();
   const service = new LibraryService(
     {
       findAll,
@@ -73,6 +76,9 @@ describe("LibraryService", () => {
     {
       resolve: resolveContext,
     } as unknown as LibraryContextService,
+    {
+      publish: publishActivity,
+    } as unknown as ActivityService,
   );
 
   const userId = new Types.ObjectId();
@@ -106,6 +112,7 @@ describe("LibraryService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     resolveContext.mockResolvedValue(new Map());
+    publishActivity.mockResolvedValue(undefined);
   });
 
   it("returns suggestion and shared-list context with library entries", async () => {
@@ -168,6 +175,57 @@ describe("LibraryService", () => {
       mediaId,
       WatchStatus.ToWatch,
     );
+    expect(publishActivity).toHaveBeenCalledWith({
+      actorUserId: userId,
+      mediaId,
+      type: ActivityType.LibraryAdded,
+      status: WatchStatus.ToWatch,
+    });
+  });
+
+  it("publishes changed statuses and ratings but skips unchanged values", async () => {
+    findById.mockResolvedValue(entry);
+    findMediaById.mockResolvedValue(media);
+    updateStatus.mockResolvedValue({
+      ...entry,
+      status: WatchStatus.Watching,
+    });
+
+    await service.updateStatus(
+      userId.toHexString(),
+      entryId.toHexString(),
+      WatchStatus.Watching,
+    );
+
+    expect(publishActivity).toHaveBeenLastCalledWith({
+      actorUserId: userId,
+      mediaId,
+      type: ActivityType.LibraryStatusChanged,
+      status: WatchStatus.Watching,
+    });
+
+    publishActivity.mockClear();
+    updateRating.mockResolvedValue({ ...entry, rating: 8.5 });
+    await service.updateRating(
+      userId.toHexString(),
+      entryId.toHexString(),
+      8.5,
+    );
+    expect(publishActivity).toHaveBeenLastCalledWith({
+      actorUserId: userId,
+      mediaId,
+      type: ActivityType.LibraryRated,
+      rating: 8.5,
+    });
+
+    publishActivity.mockClear();
+    findById.mockResolvedValue({ ...entry, rating: 8.5 });
+    await service.updateRating(
+      userId.toHexString(),
+      entryId.toHexString(),
+      8.5,
+    );
+    expect(publishActivity).not.toHaveBeenCalled();
   });
 
   it("fetches and stores details when the shared media is new", async () => {

@@ -1545,7 +1545,10 @@ describe("application (e2e)", () => {
       .get("/api/settings")
       .set("Cookie", otherUserCookie)
       .expect(200)
-      .expect({ libraryVisibility: "private" });
+      .expect({
+        libraryVisibility: "private",
+        activityVisibility: "private",
+      });
 
     const friendRequestResponse = await request(server)
       .post("/api/friends/request")
@@ -1636,7 +1639,10 @@ describe("application (e2e)", () => {
       .set("Cookie", otherUserCookie)
       .send({ libraryVisibility: "friends" })
       .expect(200)
-      .expect({ libraryVisibility: "friends" });
+      .expect({
+        libraryVisibility: "friends",
+        activityVisibility: "private",
+      });
 
     const friendLibraryResponse = await request(server)
       .get("/api/users/other_search_test/library")

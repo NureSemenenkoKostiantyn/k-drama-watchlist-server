@@ -6,9 +6,8 @@ import { NotificationsModule } from "../notifications/notifications.module";
 import { UsersModule } from "../users/users.module";
 import { FriendContextController } from "./friend-context.controller";
 import { FriendContextService } from "./friend-context.service";
-import { friendshipModelProvider } from "./friendship-model.provider";
+import { FriendshipDataModule } from "./friendship-data.module";
 import { FriendsController } from "./friends.controller";
-import { FriendsRepository } from "./friends.repository";
 import { FriendsService } from "./friends.service";
 
 @Module({
@@ -17,12 +16,11 @@ import { FriendsService } from "./friends.service";
     MediaModule,
     NotificationsModule,
     UsersModule,
+    FriendshipDataModule,
   ],
   controllers: [FriendContextController, FriendsController],
   providers: [
-    friendshipModelProvider,
     FriendContextService,
-    FriendsRepository,
     FriendsService,
   ],
   exports: [FriendsService],

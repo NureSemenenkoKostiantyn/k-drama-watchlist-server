@@ -39,14 +39,16 @@ The current backend foundation provides:
 - Friend-only title suggestions with transactional acceptance into the recipient's library.
 - Persistent social notifications with owner-scoped read state and unread counts.
 - Accepted-friend media context with public status and rating projections.
-- Reusable user settings with private-by-default library visibility.
+- Reusable user settings with private-by-default library and activity visibility.
 - Paginated friend libraries with server-enforced private, friends-only, and public access.
+- A paginated accepted-friend activity feed for visible library additions, status changes, and
+  ratings.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
 
 Public profiles, username discovery, friendship management, friend suggestions, notifications, safe
-friend context, reusable settings, visibility-controlled friend libraries, and accepted-friend
+friend context, reusable settings, visibility-controlled friend libraries and activity, and accepted-friend
 wheel sharing, shared lists, shared-list discussions, member management, and public-safe list and
 wheel links are implemented.
 Authentication emails are delivered through Resend.
@@ -80,7 +82,8 @@ docker compose exec api npm run seed:dev
 
 The seed creates the verified demo account `demo@drama-watch.local` with password
 `DramaWatch1!`, three example friendship states, received and sent suggestions, social
-notifications, four shared media records, a personal library, accepted-friend media activity,
+notifications, four shared media records, a personal library, accepted-friend media context and
+feed events,
 friends-only demo visibility settings, categories, default priority lanes, and owned and shared
 wheels with example spin history, and owned and read-only shared lists with group progress and
 spoiler-marked discussion. It uses upserts,
@@ -259,9 +262,9 @@ GET   /api/settings
 PATCH /api/settings
 ```
 
-The first setting is `libraryVisibility`, with `private`, `friends`, and `public` values. Missing
-settings resolve to `private` without writing a document. Updates use one `userSettings` document
-per Better Auth user, enforced by a unique `userId` index.
+`libraryVisibility` and `activityVisibility` each accept `private`, `friends`, and `public`. Missing
+settings resolve both fields to `private` without writing a document. Updates use one `userSettings`
+document per Better Auth user, enforced by a unique `userId` index.
 
 Libraries are browsed through:
 
@@ -276,6 +279,17 @@ activity, title in either direction, highest rating, and release date in either 
 response contains only normalized shared media, status, and optional rating; it never returns
 private notes, progress, categories, priority data, playback preferences, suggestion provenance,
 lifecycle timestamps, or personal-entry IDs.
+
+The protected activity feed is available through:
+
+```text
+GET /api/activity?page=1&limit=20
+```
+
+It contains accepted friends' library additions, lifecycle changes, and ratings only when their
+current activity visibility is not private. Feed items expose public profiles and normalized media,
+never personal-entry IDs, notes, progress, categories, or playback preferences. Events expire after
+180 days. Publication failures are logged without failing the successful library mutation.
 
 ## Friendships
 

@@ -5,7 +5,11 @@ import {
   Types,
 } from "mongoose";
 
-import { LibraryVisibility } from "../../common/types/settings.types";
+import {
+  ActivityVisibility,
+  LibraryVisibility,
+} from "../../common/types/settings.types";
+import { type UpdateSettingsDto } from "./dto/update-settings.dto";
 import { type UserSettingsDocument } from "./schema/user-settings.schema";
 import { USER_SETTINGS_MODEL } from "./user-settings-model.provider";
 
@@ -13,6 +17,7 @@ export interface StoredUserSettings {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
   libraryVisibility: LibraryVisibility;
+  activityVisibility: ActivityVisibility;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,15 +36,25 @@ export class SettingsRepository {
     return document ? mapSettingsDocument(document) : null;
   }
 
+  async findByUserIds(
+    userIds: Types.ObjectId[],
+  ): Promise<StoredUserSettings[]> {
+    if (userIds.length === 0) return [];
+    const documents = await this.settingsModel
+      .find({ userId: { $in: userIds } })
+      .exec();
+    return documents.map(mapSettingsDocument);
+  }
+
   async update(
     userId: Types.ObjectId,
-    libraryVisibility: LibraryVisibility,
+    input: UpdateSettingsDto,
   ): Promise<StoredUserSettings> {
     const document = await this.settingsModel
       .findOneAndUpdate(
         { userId },
         {
-          $set: { libraryVisibility },
+          $set: input,
           $setOnInsert: { userId },
         },
         {
@@ -66,6 +81,8 @@ function mapSettingsDocument(
     _id: document._id,
     userId: document.userId,
     libraryVisibility: document.libraryVisibility,
+    activityVisibility:
+      document.activityVisibility ?? ActivityVisibility.Private,
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
   };

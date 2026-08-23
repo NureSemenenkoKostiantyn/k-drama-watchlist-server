@@ -183,6 +183,12 @@ export async function seedDevelopmentData(
     media,
     now,
   );
+  await seedActivityFeed(
+    database,
+    users.acceptedFriend._id,
+    media,
+    now,
+  );
 }
 
 async function seedUsers(
@@ -342,6 +348,7 @@ async function seedUserSettings(
         {
           $set: {
             libraryVisibility: "friends",
+            activityVisibility: "friends",
             updatedAt: now,
           },
           $setOnInsert: {
@@ -1193,6 +1200,61 @@ async function seedFriendMediaContext(
       now,
     ),
   ]);
+}
+
+async function seedActivityFeed(
+  database: Db,
+  actorUserId: ObjectId,
+  media: Record<string, SeedMedia>,
+  now: Date,
+): Promise<void> {
+  const goblin = requireSeeded(media, "tv:67915");
+  const crashLanding = requireSeeded(media, "tv:94796");
+  const parasite = requireSeeded(media, "movie:496243");
+  const activityEvents = database.collection("activityEvents");
+  const expiresAt = new Date(
+    now.getTime() + 180 * 24 * 60 * 60 * 1_000,
+  );
+  const inputs = [
+    {
+      mediaId: parasite._id,
+      type: "library_rated",
+      rating: 9,
+      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1_000),
+    },
+    {
+      mediaId: crashLanding._id,
+      type: "library_status_changed",
+      status: "watching",
+      createdAt: new Date(now.getTime() - 20 * 60 * 60 * 1_000),
+    },
+    {
+      mediaId: goblin._id,
+      type: "library_added",
+      status: "to_watch",
+      createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1_000),
+    },
+  ];
+
+  await Promise.all(
+    inputs.map((input) =>
+      activityEvents.updateOne(
+        {
+          actorUserId,
+          mediaId: input.mediaId,
+          type: input.type,
+        },
+        {
+          $set: {
+            ...input,
+            actorUserId,
+            deleteAfter: expiresAt,
+          },
+        },
+        { upsert: true },
+      ),
+    ),
+  );
 }
 
 async function upsertUserMedia(
