@@ -30,12 +30,18 @@ export class UsersService {
     );
   }
 
-  async getByUsername(
-    username: string,
-  ): Promise<PublicUserProfileResponse> {
-    return toPublicUserProfile(
-      await this.resolveByUsername(username),
-    );
+  async getById(userId: string): Promise<PublicUserProfileResponse> {
+    return toPublicUserProfile(await this.resolveById(userId));
+  }
+
+  async resolveById(userId: string): Promise<StoredPublicUser> {
+    const user = await this.usersRepository.findById(toObjectId(userId));
+
+    if (!user) {
+      throw userNotFound();
+    }
+
+    return user;
   }
 
   async resolveByUsername(username: string): Promise<StoredPublicUser> {
@@ -44,11 +50,7 @@ export class UsersService {
     );
 
     if (!user) {
-      throw new ApiException({
-        statusCode: HttpStatus.NOT_FOUND,
-        code: "NOT_FOUND",
-        message: "User not found.",
-      });
+      throw userNotFound();
     }
 
     return user;
@@ -57,6 +59,14 @@ export class UsersService {
   findStoredByIds(userIds: ObjectId[]): Promise<StoredPublicUser[]> {
     return this.usersRepository.findByIds(userIds);
   }
+}
+
+function userNotFound(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.NOT_FOUND,
+    code: "NOT_FOUND",
+    message: "User not found.",
+  });
 }
 
 export function toPublicUserProfile(

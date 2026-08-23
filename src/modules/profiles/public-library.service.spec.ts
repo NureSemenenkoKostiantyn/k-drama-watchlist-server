@@ -19,8 +19,7 @@ import { PublicLibraryService } from "./public-library.service";
 describe("PublicLibraryService", () => {
   const owner = buildUser("owner");
   const viewerId = new Types.ObjectId();
-  const resolveByUsername =
-    jest.fn<UsersService["resolveByUsername"]>();
+  const resolveById = jest.fn<UsersService["resolveById"]>();
   const getForUser =
     jest.fn<SettingsService["getForUser"]>();
   const areAcceptedFriends =
@@ -29,7 +28,7 @@ describe("PublicLibraryService", () => {
     jest.fn<PublicLibraryRepository["findPage"]>();
   const service = new PublicLibraryService(
     { findPage } as unknown as PublicLibraryRepository,
-    { resolveByUsername } as unknown as UsersService,
+    { resolveById } as unknown as UsersService,
     { getForUser } as unknown as SettingsService,
     { areAcceptedFriends } as unknown as FriendsService,
   );
@@ -41,7 +40,7 @@ describe("PublicLibraryService", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    resolveByUsername.mockResolvedValue(owner);
+    resolveById.mockResolvedValue(owner);
     findPage.mockResolvedValue(buildPage());
   });
 
@@ -51,9 +50,9 @@ describe("PublicLibraryService", () => {
     });
 
     await expect(
-      service.getByUsername(
+      service.getByUserId(
         owner._id.toHexString(),
-        owner.username,
+        owner._id.toHexString(),
         query,
       ),
     ).resolves.toMatchObject({
@@ -82,9 +81,9 @@ describe("PublicLibraryService", () => {
     areAcceptedFriends.mockResolvedValue(true);
 
     await expect(
-      service.getByUsername(
+      service.getByUserId(
         viewerId.toHexString(),
-        owner.username,
+        owner._id.toHexString(),
         query,
       ),
     ).resolves.toMatchObject({
@@ -104,9 +103,9 @@ describe("PublicLibraryService", () => {
     areAcceptedFriends.mockResolvedValue(false);
 
     await expect(
-      service.getByUsername(
+      service.getByUserId(
         viewerId.toHexString(),
-        owner.username,
+        owner._id.toHexString(),
         query,
       ),
     ).rejects.toMatchObject({
@@ -120,7 +119,11 @@ describe("PublicLibraryService", () => {
     });
 
     await expect(
-      service.getByUsername(undefined, owner.username, query),
+      service.getByUserId(
+        undefined,
+        owner._id.toHexString(),
+        query,
+      ),
     ).resolves.toMatchObject({
       visibility: LibraryVisibility.Public,
       isOwner: false,
@@ -129,7 +132,7 @@ describe("PublicLibraryService", () => {
 
   it("rejects an inverted release-year range", async () => {
     await expect(
-      service.getByUsername(undefined, owner.username, {
+      service.getByUserId(undefined, owner._id.toHexString(), {
         ...query,
         yearFrom: 2025,
         yearTo: 2020,
@@ -138,7 +141,7 @@ describe("PublicLibraryService", () => {
       code: "INVALID_YEAR_RANGE",
       status: 400,
     });
-    expect(resolveByUsername).not.toHaveBeenCalled();
+    expect(resolveById).not.toHaveBeenCalled();
     expect(findPage).not.toHaveBeenCalled();
   });
 });

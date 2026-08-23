@@ -7,7 +7,7 @@ import {
 
 import { type DramaWatchAuth } from "../../auth/auth.factory";
 import { type PublicLibraryResponse } from "../../common/types/public-library.types";
-import { UserProfileParams } from "../users/dto/user-profile-params.dto";
+import { UserIdParams } from "../users/dto/user-id-params.dto";
 import { PublicLibraryQuery } from "./dto/public-library-query.dto";
 import { PublicLibraryService } from "./public-library.service";
 
@@ -17,17 +17,17 @@ export class PublicLibraryController {
     private readonly publicLibraryService: PublicLibraryService,
   ) {}
 
-  @Get(":username/library")
+  @Get(":userId/library")
   @OptionalAuth()
-  getByUsername(
+  getByUserId(
     @Session()
     session: UserSession<DramaWatchAuth> | null | undefined,
-    @Param() params: UserProfileParams,
+    @Param() params: UserIdParams,
     @Query() query: PublicLibraryQuery,
   ): Promise<PublicLibraryResponse> {
-    return this.publicLibraryService.getByUsername(
+    return this.publicLibraryService.getByUserId(
       session?.user.id,
-      params.username,
+      params.userId,
       query,
     );
   }

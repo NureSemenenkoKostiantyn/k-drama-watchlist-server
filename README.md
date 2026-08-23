@@ -233,7 +233,7 @@ and Cloud Run.
 
 ## Public profiles
 
-`GET /api/users/:username` is public and returns the user's ID, username, display username, public
+`GET /api/users/:userId` is public and returns the user's ID, username, display username, public
 name, optional image, and join date. Email addresses and Better Auth internals are never returned.
 Authenticated users can call `GET /api/users/search?q=<query>&limit=<1-20>` to search normalized
 usernames and public names. Results rank exact usernames, username prefixes, exact names, name-word
@@ -258,7 +258,7 @@ per Better Auth user, enforced by a unique `userId` index.
 Libraries are browsed through:
 
 ```text
-GET /api/users/:username/library
+GET /api/users/:userId/library
 ```
 
 Owners always have access. Friends-only libraries require an accepted friendship, while public

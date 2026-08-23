@@ -27,6 +27,16 @@ export class UsersRepository {
     private readonly databaseService: MongooseDatabaseService,
   ) {}
 
+  async findById(userId: ObjectId): Promise<StoredPublicUser | null> {
+    const users = await this.getUsersCollection();
+    const user = await users.findOne(
+      { _id: userId },
+      { projection: publicUserProjection },
+    );
+
+    return user && hasUsername(user) ? mapPublicUser(user) : null;
+  }
+
   async findByUsername(
     normalizedUsername: string,
   ): Promise<StoredPublicUser | null> {

@@ -8,7 +8,7 @@ import {
 import { type DramaWatchAuth } from "../../auth/auth.factory";
 import { type PublicUserProfileResponse } from "../../common/types/user.types";
 import { SearchUsersQuery } from "./dto/search-users-query.dto";
-import { UserProfileParams } from "./dto/user-profile-params.dto";
+import { UserIdParams } from "./dto/user-id-params.dto";
 import { UsersService } from "./users.service";
 
 @Controller("users")
@@ -27,11 +27,11 @@ export class UsersController {
     );
   }
 
-  @Get(":username")
+  @Get(":userId")
   @AllowAnonymous()
-  getByUsername(
-    @Param() params: UserProfileParams,
+  getById(
+    @Param() params: UserIdParams,
   ): Promise<PublicUserProfileResponse> {
-    return this.usersService.getByUsername(params.username);
+    return this.usersService.getById(params.userId);
   }
 }
