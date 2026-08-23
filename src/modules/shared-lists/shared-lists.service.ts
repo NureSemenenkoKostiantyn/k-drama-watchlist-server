@@ -7,12 +7,15 @@ import { Types } from "mongoose";
 import { ApiException } from "../../common/errors/api-exception";
 import { NotificationType } from "../../common/types/notification.types";
 import {
+  type PublicSharedListDetailsResponse,
+  type PublicSharedListItemResponse,
   type SharedListDetailsResponse,
   type SharedListInviteResponse,
   type SharedListItemResponse,
   type SharedListMemberResponse,
   type SharedListResponse,
   SharedListRole,
+  SharedListVisibility,
 } from "../../common/types/shared-list.types";
 import { type Environment } from "../../config/environment";
 import {
@@ -91,17 +94,42 @@ export class SharedListsService {
     );
   }
 
+  async getPublic(publicSlug: string): Promise<PublicSharedListDetailsResponse> {
+    const list = await this.repository.findByPublicSlug(publicSlug);
+    if (!list || !list.publicSlug) throw listNotFound();
+    const details = await this.withDetails(list, list.ownerId);
+    return {
+      title: details.title,
+      visibility: list.visibility as
+        | SharedListVisibility.Unlisted
+        | SharedListVisibility.Public,
+      publicSlug: list.publicSlug,
+      itemCount: details.itemCount,
+      members: details.members,
+      items: details.items.map(toPublicItemResponse),
+      createdAt: details.createdAt,
+      updatedAt: details.updatedAt,
+      ...(details.description === undefined
+        ? {}
+        : { description: details.description }),
+    };
+  }
+
   async update(
     authenticatedUserId: string,
     listId: string,
     input: UpdateSharedListDto,
   ): Promise<SharedListDetailsResponse> {
-    if (input.title === undefined && input.description === undefined) {
+    if (
+      input.title === undefined &&
+      input.description === undefined &&
+      input.visibility === undefined
+    ) {
       throw invalidList("Provide a shared-list field to update.");
     }
     const userId = toObjectId(authenticatedUserId);
     const listIdObject = new Types.ObjectId(listId);
-    await this.requireOwner(userId, listIdObject);
+    const current = await this.requireOwner(userId, listIdObject);
     const list = await this.repository.update(userId, listIdObject, {
       ...(input.title === undefined ? {} : { title: input.title }),
       ...(input.description === undefined
@@ -112,6 +140,17 @@ export class SharedListsService {
                 ? null
                 : (normalizeOptionalText(input.description) ?? null),
           }),
+      ...(input.visibility === undefined
+        ? {}
+        : input.visibility === SharedListVisibility.Private
+          ? {
+              visibility: SharedListVisibility.Private,
+              publicSlug: null,
+            }
+          : {
+              visibility: input.visibility,
+              publicSlug: current.publicSlug ?? createPublicSlug(),
+            }),
     });
     if (!list) throw listNotFound();
     return this.withDetails(list, userId);
@@ -577,7 +616,33 @@ function toListResponse(
     createdAt: list.createdAt.toISOString(),
     updatedAt: list.updatedAt.toISOString(),
     ...(list.description === undefined ? {} : { description: list.description }),
+    ...(list.publicSlug === undefined ? {} : { publicSlug: list.publicSlug }),
   };
+}
+
+function toPublicItemResponse(
+  item: SharedListItemResponse,
+): PublicSharedListItemResponse {
+  const publicMedia = { ...item.media };
+  Reflect.deleteProperty(publicMedia, "id");
+  return {
+    position: item.position,
+    media: publicMedia,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    ...(item.addedBy === undefined ? {} : { addedBy: item.addedBy }),
+    ...(item.note === undefined ? {} : { note: item.note }),
+    ...(item.groupStatus === undefined
+      ? {}
+      : { groupStatus: item.groupStatus }),
+    ...(item.groupProgress === undefined
+      ? {}
+      : { groupProgress: item.groupProgress }),
+  };
+}
+
+function createPublicSlug(): string {
+  return randomBytes(12).toString("base64url");
 }
 
 function sameIds(left: string[], right: string[]): boolean {

@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import { HttpStatus, Injectable } from "@nestjs/common";
 import { MongoServerError } from "mongodb";
 import { Types } from "mongoose";
@@ -5,6 +7,9 @@ import { Types } from "mongoose";
 import { ApiException } from "../../common/errors/api-exception";
 import { NotificationType } from "../../common/types/notification.types";
 import {
+  type PublicWheelDetailsResponse,
+  type PublicWheelItemResponse,
+  type PublicWheelSpinResponse,
   type SelectedWheelItemResponse,
   type WheelDetailsResponse,
   type WheelItemResponse,
@@ -12,6 +17,7 @@ import {
   type WheelResponse,
   WheelRole,
   WheelSelectionMode,
+  WheelVisibility,
   type WheelSpinHistoryResponse,
   type WheelSpinResponse,
 } from "../../common/types/wheel.types";
@@ -89,6 +95,39 @@ export class WheelsService {
     return this.withItems(wheel, userId);
   }
 
+  async getPublic(publicSlug: string): Promise<PublicWheelDetailsResponse> {
+    const wheel = await this.wheelsRepository.findByPublicSlug(publicSlug);
+
+    if (
+      !wheel ||
+      !wheel.publicSlug ||
+      wheel.visibility === WheelVisibility.Private
+    ) {
+      throw wheelNotFound();
+    }
+
+    const [details, history] = await Promise.all([
+      this.withItems(wheel, wheel.ownerId),
+      this.history(wheel.ownerId.toHexString(), wheel._id.toHexString()),
+    ]);
+    return {
+      title: details.title,
+      visibility: wheel.visibility,
+      publicSlug: wheel.publicSlug,
+      selectionMode: details.selectionMode,
+      itemCount: details.itemCount,
+      enabledItemCount: details.enabledItemCount,
+      items: details.items.map(toPublicWheelItemResponse),
+      members: details.members,
+      history: history.map(toPublicWheelSpinResponse),
+      createdAt: details.createdAt,
+      updatedAt: details.updatedAt,
+      ...(details.description === undefined
+        ? {}
+        : { description: details.description }),
+    };
+  }
+
   async update(
     authenticatedUserId: string,
     wheelId: string,
@@ -97,14 +136,18 @@ export class WheelsService {
     if (
       input.title === undefined &&
       input.description === undefined &&
-      input.selectionMode === undefined
+      input.selectionMode === undefined &&
+      input.visibility === undefined
     ) {
       throw invalidWheel("Provide a wheel field to update.");
     }
 
     const userId = toObjectId(authenticatedUserId);
     const wheelIdObject = new Types.ObjectId(wheelId);
-    await this.requireOwnerWheel(userId, wheelIdObject);
+    const existingWheel = await this.requireOwnerWheel(
+      userId,
+      wheelIdObject,
+    );
     const wheel = await this.wheelsRepository.update(
       userId,
       wheelIdObject,
@@ -121,6 +164,14 @@ export class WheelsService {
         ...(input.selectionMode === undefined
           ? {}
           : { selectionMode: input.selectionMode }),
+        ...(input.visibility === undefined
+          ? {}
+          : input.visibility === WheelVisibility.Private
+            ? { visibility: input.visibility, publicSlug: null }
+            : {
+                visibility: input.visibility,
+                publicSlug: existingWheel.publicSlug ?? createPublicSlug(),
+              }),
       },
     );
 
@@ -662,7 +713,48 @@ function toWheelResponse(
     ...(wheel.description === undefined
       ? {}
       : { description: wheel.description }),
+    ...(wheel.publicSlug === undefined
+      ? {}
+      : { publicSlug: wheel.publicSlug }),
   };
+}
+
+function toPublicWheelItemResponse(
+  item: WheelItemResponse,
+): PublicWheelItemResponse {
+  const publicMedia = { ...item.media };
+  Reflect.deleteProperty(publicMedia, "id");
+  return {
+    position: item.position,
+    weight: item.weight,
+    isEnabled: item.isEnabled,
+    selectionCount: item.selectionCount,
+    media: publicMedia,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    ...(item.lastSelectedAt === undefined
+      ? {}
+      : { lastSelectedAt: item.lastSelectedAt }),
+  };
+}
+
+function toPublicWheelSpinResponse(
+  spin: WheelSpinHistoryResponse,
+): PublicWheelSpinResponse {
+  return {
+    selectedItem: {
+      title: spin.selectedItem.title,
+      ...(spin.selectedItem.posterUrl === undefined
+        ? {}
+        : { posterUrl: spin.selectedItem.posterUrl }),
+    },
+    ...(spin.spunBy === undefined ? {} : { spunBy: spin.spunBy }),
+    createdAt: spin.createdAt,
+  };
+}
+
+function createPublicSlug(): string {
+  return randomBytes(12).toString("base64url");
 }
 
 function toWheelMemberResponse(

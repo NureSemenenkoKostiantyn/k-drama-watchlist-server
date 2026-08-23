@@ -70,6 +70,8 @@ export interface WheelUpdate {
   title?: string;
   description?: string | null;
   selectionMode?: WheelSelectionMode;
+  visibility?: WheelVisibility;
+  publicSlug?: string | null;
 }
 
 export interface WheelItemUpdate {
@@ -127,6 +129,16 @@ export class WheelsRepository {
     return document ? mapWheel(document) : null;
   }
 
+  async findByPublicSlug(publicSlug: string): Promise<StoredWheel | null> {
+    const document = await this.wheelModel
+      .findOne({
+        publicSlug,
+        visibility: { $in: [WheelVisibility.Unlisted, WheelVisibility.Public] },
+      })
+      .exec();
+    return document ? mapWheel(document) : null;
+  }
+
   async create(
     ownerId: Types.ObjectId,
     title: string,
@@ -158,6 +170,16 @@ export class WheelsRepository {
 
     if (input.selectionMode !== undefined) {
       setValues.selectionMode = input.selectionMode;
+    }
+
+    if (input.visibility !== undefined) {
+      setValues.visibility = input.visibility;
+    }
+
+    if (input.publicSlug === null) {
+      unsetValues.publicSlug = 1;
+    } else if (input.publicSlug !== undefined) {
+      setValues.publicSlug = input.publicSlug;
     }
 
     if (input.description === null) {

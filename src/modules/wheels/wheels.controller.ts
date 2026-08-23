@@ -10,12 +10,14 @@ import {
   Post,
 } from "@nestjs/common";
 import {
+  AllowAnonymous,
   Session,
   type UserSession,
 } from "@thallesp/nestjs-better-auth";
 
 import { type DramaWatchAuth } from "../../auth/auth.factory";
 import {
+  type PublicWheelDetailsResponse,
   type WheelDetailsResponse,
   type WheelItemResponse,
   type WheelMemberResponse,
@@ -31,6 +33,7 @@ import { UpdateWheelItemDto } from "./dto/update-wheel-item.dto";
 import { UpdateWheelMemberDto } from "./dto/update-wheel-member.dto";
 import { UpdateWheelDto } from "./dto/update-wheel.dto";
 import {
+  PublicWheelParamsDto,
   WheelItemParamsDto,
   WheelMemberParamsDto,
   WheelParamsDto,
@@ -208,5 +211,18 @@ export class WheelsController {
     @Param() params: WheelParamsDto,
   ): Promise<void> {
     return this.wheelsService.delete(session.user.id, params.wheelId);
+  }
+}
+
+@Controller("public/wheels")
+@AllowAnonymous()
+export class PublicWheelsController {
+  constructor(private readonly wheelsService: WheelsService) {}
+
+  @Get(":publicSlug")
+  get(
+    @Param() params: PublicWheelParamsDto,
+  ): Promise<PublicWheelDetailsResponse> {
+    return this.wheelsService.getPublic(params.publicSlug);
   }
 }

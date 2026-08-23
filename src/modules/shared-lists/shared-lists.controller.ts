@@ -10,12 +10,14 @@ import {
   Post,
 } from "@nestjs/common";
 import {
+  AllowAnonymous,
   Session,
   type UserSession,
 } from "@thallesp/nestjs-better-auth";
 
 import { type DramaWatchAuth } from "../../auth/auth.factory";
 import {
+  type PublicSharedListDetailsResponse,
   type SharedListDetailsResponse,
   type SharedListInviteResponse,
   type SharedListItemResponse,
@@ -31,6 +33,7 @@ import {
   SharedListItemParamsDto,
   SharedListMemberParamsDto,
   SharedListParamsDto,
+  PublicSharedListParamsDto,
 } from "./dto/shared-list-params.dto";
 import { UpdateSharedListItemDto } from "./dto/update-shared-list-item.dto";
 import { UpdateSharedListMemberDto } from "./dto/update-shared-list-member.dto";
@@ -174,5 +177,18 @@ export class SharedListInvitesController {
     @Param() params: SharedListInviteParamsDto,
   ): Promise<SharedListDetailsResponse> {
     return this.service.acceptInvite(session.user.id, params.identifier);
+  }
+}
+
+@Controller("public/lists")
+@AllowAnonymous()
+export class PublicSharedListsController {
+  constructor(private readonly service: SharedListsService) {}
+
+  @Get(":publicSlug")
+  get(
+    @Param() params: PublicSharedListParamsDto,
+  ): Promise<PublicSharedListDetailsResponse> {
+    return this.service.getPublic(params.publicSlug);
   }
 }

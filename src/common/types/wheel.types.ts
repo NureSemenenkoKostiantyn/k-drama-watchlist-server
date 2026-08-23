@@ -23,6 +23,7 @@ export interface WheelResponse {
   title: string;
   description?: string;
   visibility: WheelVisibility;
+  publicSlug?: string;
   role: WheelRole;
   selectionMode: WheelSelectionMode;
   itemCount: number;
@@ -69,3 +70,38 @@ export interface WheelSpinResponse {
 }
 
 export type WheelSpinHistoryResponse = WheelSpinResponse;
+
+export interface PublicWheelItemResponse {
+  position: number;
+  weight: number;
+  isEnabled: boolean;
+  lastSelectedAt?: string;
+  selectionCount: number;
+  media: Omit<MediaDetails, "id">;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicWheelSpinResponse {
+  selectedItem: {
+    title: string;
+    posterUrl?: string;
+  };
+  spunBy?: PublicUserProfileResponse;
+  createdAt: string;
+}
+
+export interface PublicWheelDetailsResponse {
+  title: string;
+  description?: string;
+  visibility: WheelVisibility.Unlisted | WheelVisibility.Public;
+  publicSlug: string;
+  selectionMode: WheelSelectionMode;
+  itemCount: number;
+  enabledItemCount: number;
+  items: PublicWheelItemResponse[];
+  members: WheelMemberResponse[];
+  history: PublicWheelSpinResponse[];
+  createdAt: string;
+  updatedAt: string;
+}
