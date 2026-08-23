@@ -464,6 +464,7 @@ POST   /api/lists
 GET    /api/lists/:listId
 PATCH  /api/lists/:listId
 DELETE /api/lists/:listId
+GET    /api/public/lists
 GET    /api/public/lists/:publicSlug
 
 POST   /api/lists/:listId/items
@@ -492,7 +493,10 @@ member and link back to the list. List deletion cascades to items, comments, and
 Owners can switch a list between private, unlisted, and public. Unlisted and public modes issue a
 stable random link; switching back to private revokes it. The anonymous endpoint is read-only and
 omits internal list, item, and MongoDB media IDs as well as comments and authentication data.
-Public discovery is not implemented yet, so public and unlisted differ only in declared intent.
+The anonymous, paginated `GET /api/public/lists` feed includes only public lists, ordered by recent
+activity. Its cards expose public owner profiles, item counts, and up to four poster previews without
+internal IDs. Unlisted lists remain direct-link-only. A `{ visibility: 1, updatedAt: -1 }` index
+supports the feed.
 
 ## Container
 

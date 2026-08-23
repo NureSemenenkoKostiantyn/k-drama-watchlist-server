@@ -8,7 +8,9 @@ import { ApiException } from "../../common/errors/api-exception";
 import { NotificationType } from "../../common/types/notification.types";
 import {
   type PublicSharedListDetailsResponse,
+  type PublicSharedListDiscoveryResponse,
   type PublicSharedListItemResponse,
+  type PublicSharedListPreviewMediaResponse,
   type SharedListDetailsResponse,
   type SharedListInviteResponse,
   type SharedListItemResponse,
@@ -31,6 +33,7 @@ import {
 import { type AddSharedListItemDto } from "./dto/add-shared-list-item.dto";
 import { type CreateSharedListInviteDto } from "./dto/create-shared-list-invite.dto";
 import { type CreateSharedListDto } from "./dto/create-shared-list.dto";
+import { type PublicSharedListsQueryDto } from "./dto/public-shared-lists-query.dto";
 import { type ReorderSharedListItemsDto } from "./dto/reorder-shared-list-items.dto";
 import { type UpdateSharedListItemDto } from "./dto/update-shared-list-item.dto";
 import { type UpdateSharedListMemberDto } from "./dto/update-shared-list-member.dto";
@@ -42,6 +45,7 @@ import {
 } from "./shared-lists.repository";
 
 const INVITE_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
+const PUBLIC_LIST_PREVIEW_LIMIT = 4;
 
 @Injectable()
 export class SharedListsService {
@@ -112,6 +116,69 @@ export class SharedListsService {
       ...(details.description === undefined
         ? {}
         : { description: details.description }),
+    };
+  }
+
+  async discoverPublic(
+    query: PublicSharedListsQueryDto,
+  ): Promise<PublicSharedListDiscoveryResponse> {
+    const page = await this.repository.findPublicPage(query.page, query.limit);
+    const summaries = await this.repository.summarizeItemsForLists(
+      page.lists.map((list) => list._id),
+      PUBLIC_LIST_PREVIEW_LIMIT,
+    );
+    const summariesByListId = new Map(
+      summaries.map((summary) => [summary.listId.toHexString(), summary]),
+    );
+    const previewMediaIds = summaries.flatMap(
+      (summary) => summary.previewMediaIds,
+    );
+    const [owners, previewMedia] = await Promise.all([
+      this.usersService.findStoredByIds(
+        uniqueObjectIds(page.lists.map((list) => list.ownerId)),
+      ),
+      this.mediaRepository.findByIds(uniqueObjectIds(previewMediaIds)),
+    ]);
+    const ownersById = new Map(
+      owners.map((owner) => [owner._id.toHexString(), owner]),
+    );
+    const mediaById = new Map(
+      previewMedia.map((media) => [media._id.toHexString(), media]),
+    );
+
+    return {
+      page: query.page,
+      totalPages:
+        page.totalResults === 0
+          ? 0
+          : Math.ceil(page.totalResults / query.limit),
+      totalResults: page.totalResults,
+      items: page.lists.flatMap((list) => {
+        if (!list.publicSlug) return [];
+        const summary = summariesByListId.get(list._id.toHexString());
+        const owner = ownersById.get(list.ownerId.toHexString());
+        return [
+          {
+            title: list.title,
+            publicSlug: list.publicSlug,
+            itemCount: summary?.itemCount ?? 0,
+            previewMedia: (summary?.previewMediaIds ?? []).flatMap(
+              (mediaId) => {
+                const media = mediaById.get(mediaId.toHexString());
+                return media ? [toPublicListPreviewMedia(media)] : [];
+              },
+            ),
+            createdAt: list.createdAt.toISOString(),
+            updatedAt: list.updatedAt.toISOString(),
+            ...(list.description === undefined
+              ? {}
+              : { description: list.description }),
+            ...(owner === undefined
+              ? {}
+              : { owner: toPublicUserProfile(owner) }),
+          },
+        ];
+      }),
     };
   }
 
@@ -638,6 +705,22 @@ function toPublicItemResponse(
     ...(item.groupProgress === undefined
       ? {}
       : { groupProgress: item.groupProgress }),
+  };
+}
+
+function toPublicListPreviewMedia(
+  media: StoredMedia,
+): PublicSharedListPreviewMediaResponse {
+  return {
+    tmdbId: media.tmdbId,
+    mediaType: media.mediaType,
+    title: media.title,
+    ...(media.posterPath === undefined
+      ? {}
+      : { posterPath: media.posterPath }),
+    ...(media.posterUrl === undefined
+      ? {}
+      : { posterUrl: media.posterUrl }),
   };
 }
 

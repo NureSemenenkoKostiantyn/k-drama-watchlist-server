@@ -86,6 +86,23 @@ export interface SharedListItemUpdate {
   groupProgress?: SharedListProgressDocument | null;
 }
 
+export interface StoredPublicSharedListPage {
+  lists: StoredSharedList[];
+  totalResults: number;
+}
+
+export interface StoredSharedListItemSummary {
+  listId: Types.ObjectId;
+  itemCount: number;
+  previewMediaIds: Types.ObjectId[];
+}
+
+interface SharedListItemSummaryAggregate {
+  _id: Types.ObjectId;
+  itemCount: number;
+  previewMediaIds: Types.ObjectId[];
+}
+
 @Injectable()
 export class SharedListsRepository {
   constructor(
@@ -123,6 +140,30 @@ export class SharedListsRepository {
       .sort({ updatedAt: -1 })
       .exec();
     return documents.map(mapList);
+  }
+
+  async findPublicPage(
+    page: number,
+    limit: number,
+  ): Promise<StoredPublicSharedListPage> {
+    const filter = {
+      visibility: SharedListVisibility.Public,
+      publicSlug: { $type: "string" },
+    } as const;
+    const [documents, totalResults] = await Promise.all([
+      this.listModel
+        .find(filter)
+        .sort({ updatedAt: -1, _id: 1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .exec(),
+      this.listModel.countDocuments(filter).exec(),
+    ]);
+
+    return {
+      lists: documents.map(mapList),
+      totalResults,
+    };
   }
 
   async findById(
@@ -224,6 +265,37 @@ export class SharedListsRepository {
       .sort({ position: 1 })
       .exec();
     return documents.map(mapItem);
+  }
+
+  async summarizeItemsForLists(
+    listIds: Types.ObjectId[],
+    previewLimit: number,
+  ): Promise<StoredSharedListItemSummary[]> {
+    if (listIds.length === 0) return [];
+    const summaries =
+      await this.itemModel.aggregate<SharedListItemSummaryAggregate>([
+        { $match: { listId: { $in: listIds } } },
+        { $sort: { listId: 1, position: 1, _id: 1 } },
+        {
+          $group: {
+            _id: "$listId",
+            itemCount: { $sum: 1 },
+            previewMediaIds: { $push: "$mediaId" },
+          },
+        },
+        {
+          $project: {
+            itemCount: 1,
+            previewMediaIds: { $slice: ["$previewMediaIds", previewLimit] },
+          },
+        },
+      ]);
+
+    return summaries.map((summary) => ({
+      listId: summary._id,
+      itemCount: summary.itemCount,
+      previewMediaIds: summary.previewMediaIds,
+    }));
   }
 
   async createItem(

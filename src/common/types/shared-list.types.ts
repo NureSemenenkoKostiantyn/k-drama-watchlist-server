@@ -1,4 +1,4 @@
-import { type MediaDetails } from "./media.types";
+import { type MediaDetails, type MediaType } from "./media.types";
 import { type PublicUserProfileResponse } from "./user.types";
 
 export enum SharedListVisibility {
@@ -82,6 +82,32 @@ export interface PublicSharedListDetailsResponse {
   items: PublicSharedListItemResponse[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PublicSharedListPreviewMediaResponse {
+  tmdbId: number;
+  mediaType: MediaType;
+  title: string;
+  posterPath?: string;
+  posterUrl?: string;
+}
+
+export interface PublicSharedListDiscoveryItemResponse {
+  title: string;
+  description?: string;
+  publicSlug: string;
+  itemCount: number;
+  owner?: PublicUserProfileResponse;
+  previewMedia: PublicSharedListPreviewMediaResponse[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicSharedListDiscoveryResponse {
+  page: number;
+  totalPages: number;
+  totalResults: number;
+  items: PublicSharedListDiscoveryItemResponse[];
 }
 
 export interface SharedListInviteResponse {

@@ -8,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from "@nestjs/common";
 import {
   AllowAnonymous,
@@ -18,6 +19,7 @@ import {
 import { type DramaWatchAuth } from "../../auth/auth.factory";
 import {
   type PublicSharedListDetailsResponse,
+  type PublicSharedListDiscoveryResponse,
   type SharedListDetailsResponse,
   type SharedListInviteResponse,
   type SharedListItemResponse,
@@ -28,6 +30,7 @@ import { AddSharedListItemDto } from "./dto/add-shared-list-item.dto";
 import { CreateSharedListInviteDto } from "./dto/create-shared-list-invite.dto";
 import { CreateSharedListDto } from "./dto/create-shared-list.dto";
 import { ReorderSharedListItemsDto } from "./dto/reorder-shared-list-items.dto";
+import { PublicSharedListsQueryDto } from "./dto/public-shared-lists-query.dto";
 import {
   SharedListInviteParamsDto,
   SharedListItemParamsDto,
@@ -184,6 +187,13 @@ export class SharedListInvitesController {
 @AllowAnonymous()
 export class PublicSharedListsController {
   constructor(private readonly service: SharedListsService) {}
+
+  @Get()
+  list(
+    @Query() query: PublicSharedListsQueryDto,
+  ): Promise<PublicSharedListDiscoveryResponse> {
+    return this.service.discoverPublic(query);
+  }
 
   @Get(":publicSlug")
   get(
