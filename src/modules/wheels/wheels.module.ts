@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { FriendsModule } from "../friends/friends.module";
 import { MediaModule } from "../media/media.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { OpenGraphModule } from "../open-graph/open-graph.module";
 import { UsersModule } from "../users/users.module";
 import { wheelModelProviders } from "./wheel-model.providers";
 import {
@@ -17,6 +18,7 @@ import { WheelsService } from "./wheels.service";
     FriendsModule,
     MediaModule,
     NotificationsModule,
+    OpenGraphModule,
     UsersModule,
   ],
   controllers: [WheelsController, PublicWheelsController],
