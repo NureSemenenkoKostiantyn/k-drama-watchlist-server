@@ -1389,6 +1389,43 @@ describe("application (e2e)", () => {
         expect(response.body).not.toHaveProperty("rating");
       });
 
+    await request(server).get("/api/statistics").expect(401);
+    await request(server)
+      .get("/api/statistics")
+      .set("Cookie", authenticatedCookie)
+      .expect(200)
+      .expect((response) => {
+        const statistics = readObject(
+          response.body as unknown,
+          "Personal statistics",
+        );
+        const completedByMonth = readObjectArray(
+          statistics["completedByMonth"],
+          "Statistics completion months",
+        );
+        expect(response.body).toMatchObject({
+          totals: {
+            library: 1,
+            toWatch: 0,
+            watching: 0,
+            watched: 1,
+            movies: 0,
+            tv: 1,
+            rated: 0,
+            completedEpisodes: 16,
+          },
+          ratingDistribution: [],
+          topGenres: [{ genreId: 18, count: 1 }],
+          topCountries: [{ countryCode: "KR", count: 1 }],
+        });
+        expect(completedByMonth).toHaveLength(12);
+        expect(completedByMonth).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ count: 1 }),
+          ]),
+        );
+      });
+
     await request(server)
       .delete(`/api/categories/${comfortCategory.id}`)
       .set("Cookie", authenticatedCookie)

@@ -43,6 +43,8 @@ The current backend foundation provides:
 - Paginated friend libraries with server-enforced private, friends-only, and public access.
 - A paginated accepted-friend activity feed for visible library additions, status changes, and
   ratings.
+- Owner-only personal statistics computed from library and shared-media records without duplicating
+  analytics data.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
@@ -290,6 +292,19 @@ It contains accepted friends' library additions, lifecycle changes, and ratings 
 current activity visibility is not private. Feed items expose public profiles and normalized media,
 never personal-entry IDs, notes, progress, categories, or playback preferences. Events expire after
 180 days. Publication failures are logged without failing the successful library mutation.
+
+## Personal statistics
+
+Authenticated users can load their private overview through:
+
+```text
+GET /api/statistics
+```
+
+The response includes lifecycle and movie/series totals, recorded completed episodes, average and
+distribution of personal ratings, top genres and countries, and a zero-filled 12-month completion
+timeline. It is calculated from the owner's library joined to shared media snapshots, accepts no
+user ID, and does not estimate watch time or persist a duplicate analytics collection.
 
 ## Friendships
 

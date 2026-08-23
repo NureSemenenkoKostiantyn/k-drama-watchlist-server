@@ -29,6 +29,7 @@ import { PriorityModule } from "./modules/priority/priority.module";
 import { ProfilesModule } from "./modules/profiles/profiles.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { SharedListsModule } from "./modules/shared-lists/shared-lists.module";
+import { StatisticsModule } from "./modules/statistics/statistics.module";
 import { SuggestionsModule } from "./modules/suggestions/suggestions.module";
 import { UsersModule } from "./modules/users/users.module";
 import { WheelsModule } from "./modules/wheels/wheels.module";
@@ -90,6 +91,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     ProfilesModule,
     SettingsModule,
     SharedListsModule,
+    StatisticsModule,
     SuggestionsModule,
     UsersModule,
     WheelsModule,
