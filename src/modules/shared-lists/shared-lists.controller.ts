@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -26,6 +27,7 @@ import {
   type SharedListMemberResponse,
   type SharedListResponse,
 } from "../../common/types/shared-list.types";
+import { OpenGraphService } from "../open-graph/open-graph.service";
 import { AddSharedListItemDto } from "./dto/add-shared-list-item.dto";
 import { CreateSharedListInviteDto } from "./dto/create-shared-list-invite.dto";
 import { CreateSharedListDto } from "./dto/create-shared-list.dto";
@@ -186,13 +188,26 @@ export class SharedListInvitesController {
 @Controller("public/lists")
 @AllowAnonymous()
 export class PublicSharedListsController {
-  constructor(private readonly service: SharedListsService) {}
+  constructor(
+    private readonly service: SharedListsService,
+    private readonly openGraphService: OpenGraphService,
+  ) {}
 
   @Get()
   list(
     @Query() query: PublicSharedListsQueryDto,
   ): Promise<PublicSharedListDiscoveryResponse> {
     return this.service.discoverPublic(query);
+  }
+
+  @Get("share/:publicSlug")
+  @Header("Content-Type", "text/html; charset=utf-8")
+  @Header("Cache-Control", "no-store")
+  async share(
+    @Param() params: PublicSharedListParamsDto,
+  ): Promise<string> {
+    const list = await this.service.getPublic(params.publicSlug);
+    return this.openGraphService.renderSharedList(list);
   }
 
   @Get(":publicSlug")

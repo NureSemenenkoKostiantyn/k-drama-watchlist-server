@@ -2195,6 +2195,21 @@ describe("application (e2e)", () => {
       });
 
     await request(server)
+      .get(`/api/public/wheels/share/${publicSlug}`)
+      .expect("Content-Type", /text\/html/)
+      .expect("Cache-Control", "no-store")
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.text).toContain(
+          '<meta name="robots" content="noindex, nofollow">',
+        );
+        expect(response.text).toContain(
+          `/wheels/public/${publicSlug}`,
+        );
+        expect(response.text).not.toContain("@example.com");
+      });
+
+    await request(server)
       .patch(`/api/wheels/${wheel.id}`)
       .set("Cookie", authenticatedCookie)
       .send({ visibility: "public" })
@@ -2759,6 +2774,19 @@ describe("application (e2e)", () => {
           );
         }
         expect(JSON.stringify(publicList)).not.toContain("@example.com");
+      });
+
+    await request(server)
+      .get(`/api/public/lists/share/${publicSlug}`)
+      .expect("Content-Type", /text\/html/)
+      .expect("Cache-Control", "no-store")
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.text).toContain(
+          '<meta name="robots" content="noindex, nofollow">',
+        );
+        expect(response.text).toContain(`/lists/public/${publicSlug}`);
+        expect(response.text).not.toContain("@example.com");
       });
 
     await request(server)

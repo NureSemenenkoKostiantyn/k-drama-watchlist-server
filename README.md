@@ -457,6 +457,7 @@ GET    /api/wheels/:wheelId
 PATCH  /api/wheels/:wheelId
 DELETE /api/wheels/:wheelId
 GET    /api/public/wheels/:publicSlug
+GET    /api/public/wheels/share/:publicSlug
 
 POST   /api/wheels/:wheelId/items
 PATCH  /api/wheels/:wheelId/items/:itemId
@@ -482,6 +483,10 @@ wheel settings, manage members, reset history, or delete the wheel. Public and u
 use a stable random slug while enabled and are revoked by switching back to private. The anonymous
 projection includes public-safe candidates, members, and attributed history without internal wheel,
 candidate, spin, or MongoDB media IDs. Anonymous viewers cannot spin or mutate a wheel.
+Owners copy the `/api/public/wheels/share/:publicSlug` URL. It returns escaped Open Graph and Twitter
+HTML using an existing TMDB backdrop or poster, then redirects browsers to the canonical Angular
+wheel page. Public wheels are indexable and unlisted wheels are `noindex`; the response contains no
+internal IDs or private data.
 
 ## Shared lists
 
@@ -495,6 +500,7 @@ PATCH  /api/lists/:listId
 DELETE /api/lists/:listId
 GET    /api/public/lists
 GET    /api/public/lists/:publicSlug
+GET    /api/public/lists/share/:publicSlug
 
 POST   /api/lists/:listId/items
 PATCH  /api/lists/:listId/items/:itemId
@@ -526,6 +532,10 @@ The anonymous, paginated `GET /api/public/lists` feed includes only public lists
 activity. Its cards expose public owner profiles, item counts, and up to four poster previews without
 internal IDs. Unlisted lists remain direct-link-only. A `{ visibility: 1, updatedAt: -1 }` index
 supports the feed.
+Owners copy the `/api/public/lists/share/:publicSlug` URL. It returns the equivalent non-cacheable,
+escaped Open Graph and Twitter document and redirects browsers to the canonical Angular list page.
+It uses the first available TMDB backdrop, falls back to a poster, and applies `noindex` to unlisted
+links while preserving the existing public-safe response boundary.
 
 ## Container
 

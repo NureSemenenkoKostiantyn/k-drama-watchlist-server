@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 
 import { MediaModule } from "../media/media.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { OpenGraphModule } from "../open-graph/open-graph.module";
 import { UsersModule } from "../users/users.module";
 import {
   COMMENT_MODEL,
@@ -17,7 +18,7 @@ import { SharedListsRepository } from "./shared-lists.repository";
 import { SharedListsService } from "./shared-lists.service";
 
 @Module({
-  imports: [MediaModule, NotificationsModule, UsersModule],
+  imports: [MediaModule, NotificationsModule, OpenGraphModule, UsersModule],
   controllers: [
     SharedListsController,
     SharedListInvitesController,

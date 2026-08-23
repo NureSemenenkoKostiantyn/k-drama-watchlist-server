@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -25,6 +26,7 @@ import {
   type WheelSpinHistoryResponse,
   type WheelSpinResponse,
 } from "../../common/types/wheel.types";
+import { OpenGraphService } from "../open-graph/open-graph.service";
 import { AddWheelItemDto } from "./dto/add-wheel-item.dto";
 import { AddWheelMemberDto } from "./dto/add-wheel-member.dto";
 import { CreateWheelDto } from "./dto/create-wheel.dto";
@@ -217,7 +219,18 @@ export class WheelsController {
 @Controller("public/wheels")
 @AllowAnonymous()
 export class PublicWheelsController {
-  constructor(private readonly wheelsService: WheelsService) {}
+  constructor(
+    private readonly wheelsService: WheelsService,
+    private readonly openGraphService: OpenGraphService,
+  ) {}
+
+  @Get("share/:publicSlug")
+  @Header("Content-Type", "text/html; charset=utf-8")
+  @Header("Cache-Control", "no-store")
+  async share(@Param() params: PublicWheelParamsDto): Promise<string> {
+    const wheel = await this.wheelsService.getPublic(params.publicSlug);
+    return this.openGraphService.renderWheel(wheel);
+  }
 
   @Get(":publicSlug")
   get(
