@@ -3,6 +3,7 @@ import { MongoServerError } from "mongodb";
 import { Types } from "mongoose";
 
 import { ApiException } from "../../common/errors/api-exception";
+import { ActivityType } from "../../common/types/activity.types";
 import {
   type LibraryEntryResponse,
   type LibraryProgress,
@@ -10,6 +11,7 @@ import {
   WatchStatus,
 } from "../../common/types/library.types";
 import { MediaType } from "../../common/types/media.types";
+import { ActivityService } from "../activity/activity.service";
 import { CategoriesService } from "../categories/categories.service";
 import {
   MediaRepository,
@@ -38,6 +40,7 @@ export class LibraryService {
     private readonly mediaService: MediaService,
     private readonly categoriesService: CategoriesService,
     private readonly libraryContextService: LibraryContextService,
+    private readonly activityService: ActivityService,
   ) {}
 
   async list(
@@ -104,6 +107,12 @@ export class LibraryService {
         media._id,
         input.status,
       );
+      await this.activityService.publish({
+        actorUserId: userId,
+        mediaId: media._id,
+        type: ActivityType.LibraryAdded,
+        status: entry.status,
+      });
       return this.withMediaAndContext(userId, entry, media);
     } catch (error: unknown) {
       if (isDuplicateKeyError(error)) {
@@ -153,6 +162,15 @@ export class LibraryService {
 
     if (!entry) {
       throw libraryEntryNotFound();
+    }
+
+    if (current.status !== entry.status) {
+      await this.activityService.publish({
+        actorUserId: userId,
+        mediaId: entry.mediaId,
+        type: ActivityType.LibraryStatusChanged,
+        status: entry.status,
+      });
     }
 
     return this.withMedia(userId, entry);
@@ -208,6 +226,15 @@ export class LibraryService {
       throw libraryEntryNotFound();
     }
 
+    if (current.status !== entry.status) {
+      await this.activityService.publish({
+        actorUserId: userId,
+        mediaId: entry.mediaId,
+        type: ActivityType.LibraryStatusChanged,
+        status: entry.status,
+      });
+    }
+
     return this.withContext(userId, entry, media);
   }
 
@@ -216,16 +243,29 @@ export class LibraryService {
     entryId: string,
     rating: number | null,
   ): Promise<LibraryEntryResponse> {
-    return this.updateOwnedEntry(
-      authenticatedUserId,
-      entryId,
-      (userId, entryIdObject) =>
-        this.libraryRepository.updateRating(
-          userId,
-          entryIdObject,
-          rating,
-        ),
+    const userId = toObjectId(authenticatedUserId);
+    const entryIdObject = new Types.ObjectId(entryId);
+    const current = await this.findOwnedEntry(userId, entryIdObject);
+    const entry = await this.libraryRepository.updateRating(
+      userId,
+      entryIdObject,
+      rating,
     );
+
+    if (!entry) {
+      throw libraryEntryNotFound();
+    }
+
+    if (rating !== null && current.rating !== rating) {
+      await this.activityService.publish({
+        actorUserId: userId,
+        mediaId: entry.mediaId,
+        type: ActivityType.LibraryRated,
+        rating,
+      });
+    }
+
+    return this.withMedia(userId, entry);
   }
 
   async update(

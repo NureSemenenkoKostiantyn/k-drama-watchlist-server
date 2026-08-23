@@ -1,8 +1,16 @@
-import { IsEnum } from "class-validator";
+import { IsEnum, IsOptional } from "class-validator";
 
-import { LibraryVisibility } from "../../../common/types/settings.types";
+import {
+  ActivityVisibility,
+  LibraryVisibility,
+} from "../../../common/types/settings.types";
 
 export class UpdateSettingsDto {
+  @IsOptional()
   @IsEnum(LibraryVisibility)
-  libraryVisibility!: LibraryVisibility;
+  libraryVisibility?: LibraryVisibility;
+
+  @IsOptional()
+  @IsEnum(ActivityVisibility)
+  activityVisibility?: ActivityVisibility;
 }

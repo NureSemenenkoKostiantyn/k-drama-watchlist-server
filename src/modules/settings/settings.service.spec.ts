@@ -1,7 +1,10 @@
 import { jest } from "@jest/globals";
 import { Types } from "mongoose";
 
-import { LibraryVisibility } from "../../common/types/settings.types";
+import {
+  ActivityVisibility,
+  LibraryVisibility,
+} from "../../common/types/settings.types";
 import {
   type SettingsRepository,
   type StoredUserSettings,
@@ -12,9 +15,12 @@ describe("SettingsService", () => {
   const userId = new Types.ObjectId();
   const findByUserId =
     jest.fn<SettingsRepository["findByUserId"]>();
+  const findByUserIds =
+    jest.fn<SettingsRepository["findByUserIds"]>();
   const update = jest.fn<SettingsRepository["update"]>();
   const service = new SettingsService({
     findByUserId,
+    findByUserIds,
     update,
   } as unknown as SettingsRepository);
 
@@ -27,6 +33,7 @@ describe("SettingsService", () => {
 
     await expect(service.get(userId.toHexString())).resolves.toEqual({
       libraryVisibility: LibraryVisibility.Private,
+      activityVisibility: ActivityVisibility.Private,
     });
     expect(update).not.toHaveBeenCalled();
   });
@@ -39,14 +46,35 @@ describe("SettingsService", () => {
     await expect(
       service.update(userId.toHexString(), {
         libraryVisibility: LibraryVisibility.Friends,
+        activityVisibility: ActivityVisibility.Friends,
       }),
     ).resolves.toEqual({
       libraryVisibility: LibraryVisibility.Friends,
+      activityVisibility: ActivityVisibility.Friends,
     });
     expect(update).toHaveBeenCalledWith(
       userId,
-      LibraryVisibility.Friends,
+      {
+        libraryVisibility: LibraryVisibility.Friends,
+        activityVisibility: ActivityVisibility.Friends,
+      },
     );
+  });
+
+  it("selects only friends who opted into activity visibility", async () => {
+    const privateUserId = new Types.ObjectId();
+    findByUserIds.mockResolvedValue([
+      buildSettings(LibraryVisibility.Private),
+      {
+        ...buildSettings(LibraryVisibility.Private),
+        userId: privateUserId,
+        activityVisibility: ActivityVisibility.Private,
+      },
+    ]);
+
+    await expect(
+      service.findVisibleFriendActivityUserIds([userId, privateUserId]),
+    ).resolves.toEqual([userId]);
   });
 
   function buildSettings(
@@ -56,6 +84,7 @@ describe("SettingsService", () => {
       _id: new Types.ObjectId(),
       userId,
       libraryVisibility,
+      activityVisibility: ActivityVisibility.Friends,
       createdAt: new Date("2026-07-27T10:00:00.000Z"),
       updatedAt: new Date("2026-07-27T10:00:00.000Z"),
     };

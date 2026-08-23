@@ -4,7 +4,10 @@ import { Types } from "mongoose";
 import { WatchStatus } from "../../common/types/library.types";
 import { MediaType } from "../../common/types/media.types";
 import { PublicLibrarySort } from "../../common/types/public-library.types";
-import { LibraryVisibility } from "../../common/types/settings.types";
+import {
+  ActivityVisibility,
+  LibraryVisibility,
+} from "../../common/types/settings.types";
 import { type FriendsService } from "../friends/friends.service";
 import { type SettingsService } from "../settings/settings.service";
 import { type StoredPublicUser } from "../users/users.repository";
@@ -47,6 +50,7 @@ describe("PublicLibraryService", () => {
   it("always allows the owner and returns a safe projection", async () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Private,
+      activityVisibility: ActivityVisibility.Private,
     });
 
     await expect(
@@ -77,6 +81,7 @@ describe("PublicLibraryService", () => {
   it("allows only accepted friends for friends visibility", async () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Friends,
+      activityVisibility: ActivityVisibility.Private,
     });
     areAcceptedFriends.mockResolvedValue(true);
 
@@ -99,6 +104,7 @@ describe("PublicLibraryService", () => {
   it("rejects non-friends but permits anonymous public viewing", async () => {
     getForUser.mockResolvedValueOnce({
       libraryVisibility: LibraryVisibility.Friends,
+      activityVisibility: ActivityVisibility.Private,
     });
     areAcceptedFriends.mockResolvedValue(false);
 
@@ -116,6 +122,7 @@ describe("PublicLibraryService", () => {
 
     getForUser.mockResolvedValueOnce({
       libraryVisibility: LibraryVisibility.Public,
+      activityVisibility: ActivityVisibility.Private,
     });
 
     await expect(

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { ActivityModule } from "../activity/activity.module";
 import { CategoriesModule } from "../categories/categories.module";
 import { MediaModule } from "../media/media.module";
 import { SharedListsModule } from "../shared-lists/shared-lists.module";
@@ -12,7 +13,13 @@ import { userMediaModelProvider } from "./user-media-model.provider";
 import { USER_MEDIA_MODEL } from "./user-media-model.provider";
 
 @Module({
-  imports: [CategoriesModule, MediaModule, SharedListsModule, UsersModule],
+  imports: [
+    ActivityModule,
+    CategoriesModule,
+    MediaModule,
+    SharedListsModule,
+    UsersModule,
+  ],
   controllers: [LibraryController],
   providers: [
     userMediaModelProvider,

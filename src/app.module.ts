@@ -16,6 +16,7 @@ import {
   validateEnvironment,
 } from "./config/environment";
 import { DatabaseModule } from "./database/database.module";
+import { ActivityModule } from "./modules/activity/activity.module";
 import { CategoriesModule } from "./modules/categories/categories.module";
 import { CommentsModule } from "./modules/comments/comments.module";
 import { DiscoveryModule } from "./modules/discovery/discovery.module";
@@ -76,6 +77,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     }),
     DatabaseModule,
     AuthenticationModule,
+    ActivityModule,
     CategoriesModule,
     CommentsModule,
     DiscoveryModule,
