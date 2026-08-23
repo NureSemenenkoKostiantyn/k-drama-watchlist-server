@@ -64,3 +64,4 @@ export const SharedListSchema = new Schema<SharedListDocument>(
 SharedListSchema.index({ ownerId: 1, updatedAt: -1 });
 SharedListSchema.index({ "members.userId": 1, updatedAt: -1 });
 SharedListSchema.index({ publicSlug: 1 }, { sparse: true, unique: true });
+SharedListSchema.index({ visibility: 1, updatedAt: -1 });
