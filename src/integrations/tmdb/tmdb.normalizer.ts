@@ -6,6 +6,7 @@ import {
   type MediaSearchResponse,
   type MediaSeason,
   type MediaSummary,
+  MediaReleaseStatus,
   MediaType,
   SearchMediaType,
 } from "../../common/types/media.types";
@@ -90,6 +91,10 @@ export function normalizeTmdbMediaDetails(
     "tmdbVoteCount",
     readNonNegativeInteger(media["vote_count"]),
   );
+  details.releaseStatus = normalizeReleaseStatus(
+    readOptionalString(media["status"]),
+    mediaType,
+  );
 
   if (mediaType === MediaType.Tv) {
     assignOptional(
@@ -127,6 +132,46 @@ export function normalizeTmdbMediaDetails(
   }
 
   return details;
+}
+
+export function normalizeReleaseStatus(
+  status: string | undefined,
+  mediaType: MediaType,
+): MediaReleaseStatus {
+  const normalized = status?.trim().toLocaleLowerCase();
+
+  if (mediaType === MediaType.Tv) {
+    if (normalized === "returning series") {
+      return MediaReleaseStatus.Airing;
+    }
+
+    if (
+      normalized === "planned" ||
+      normalized === "in production" ||
+      normalized === "pilot"
+    ) {
+      return MediaReleaseStatus.Upcoming;
+    }
+
+    if (normalized === "ended" || normalized === "canceled") {
+      return MediaReleaseStatus.Ended;
+    }
+  } else {
+    if (
+      normalized === "planned" ||
+      normalized === "in production" ||
+      normalized === "post production" ||
+      normalized === "rumored"
+    ) {
+      return MediaReleaseStatus.Upcoming;
+    }
+
+    if (normalized === "released" || normalized === "canceled") {
+      return MediaReleaseStatus.Ended;
+    }
+  }
+
+  return MediaReleaseStatus.Unknown;
 }
 
 function normalizeSearchItem(

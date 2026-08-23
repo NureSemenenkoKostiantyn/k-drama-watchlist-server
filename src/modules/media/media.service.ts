@@ -13,10 +13,14 @@ import {
   normalizeTmdbSearchResponse,
 } from "../../integrations/tmdb/tmdb.normalizer";
 import { type SearchMediaQuery } from "./dto/search-media-query.dto";
+import { MediaRepository, toMediaDetails } from "./media.repository";
 
 @Injectable()
 export class MediaService {
-  constructor(private readonly tmdbClient: TmdbClient) {}
+  constructor(
+    private readonly tmdbClient: TmdbClient,
+    private readonly mediaRepository: MediaRepository,
+  ) {}
 
   async search(query: SearchMediaQuery): Promise<MediaSearchResponse> {
     if (
@@ -58,6 +62,16 @@ export class MediaService {
     return normalizeTmdbMediaDetails(
       await this.tmdbClient.getDetails(mediaType, tmdbId),
       mediaType,
+    );
+  }
+
+  async refresh(
+    mediaType: MediaType,
+    tmdbId: number,
+  ): Promise<MediaDetails> {
+    const details = await this.getDetails(mediaType, tmdbId);
+    return toMediaDetails(
+      await this.mediaRepository.upsertSnapshot(details),
     );
   }
 }

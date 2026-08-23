@@ -2,7 +2,10 @@ import { jest } from "@jest/globals";
 import { Types } from "mongoose";
 
 import { WatchStatus } from "../../common/types/library.types";
-import { MediaType } from "../../common/types/media.types";
+import {
+  MediaReleaseStatus,
+  MediaType,
+} from "../../common/types/media.types";
 import { type CategoriesService } from "../categories/categories.service";
 import {
   type MediaRepository,
@@ -85,6 +88,7 @@ describe("LibraryService", () => {
     originCountry: ["KR"],
     genreIds: [35],
     runtimeMinutes: 133,
+    releaseStatus: MediaReleaseStatus.Ended,
     lastSyncedAt: now,
     createdAt: now,
     updatedAt: now,
@@ -193,6 +197,34 @@ describe("LibraryService", () => {
       496_243,
     );
     expect(upsertSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("backfills release status when an older shared snapshot is reused", async () => {
+    findByIdentity.mockResolvedValue({ ...media, releaseStatus: undefined });
+    getDetails.mockResolvedValue({
+      id: "movie:496243",
+      tmdbId: 496_243,
+      mediaType: MediaType.Movie,
+      title: "Parasite",
+      originalTitle: "기생충",
+      originCountry: ["KR"],
+      genreIds: [35],
+      releaseStatus: MediaReleaseStatus.Ended,
+    });
+    upsertSnapshot.mockResolvedValue(media);
+    findByMedia.mockResolvedValue(null);
+    create.mockResolvedValue(entry);
+
+    await service.add(userId.toHexString(), {
+      mediaType: MediaType.Movie,
+      tmdbId: 496_243,
+      status: WatchStatus.ToWatch,
+    });
+
+    expect(getDetails).toHaveBeenCalledWith(MediaType.Movie, 496_243);
+    expect(upsertSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ releaseStatus: MediaReleaseStatus.Ended }),
+    );
   });
 
   it("rejects a duplicate relationship for the same user", async () => {

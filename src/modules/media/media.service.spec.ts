@@ -1,16 +1,25 @@
 import { jest } from "@jest/globals";
 
-import { MediaType, SearchMediaType } from "../../common/types/media.types";
+import {
+  MediaReleaseStatus,
+  MediaType,
+  SearchMediaType,
+} from "../../common/types/media.types";
 import { type TmdbClient } from "../../integrations/tmdb/tmdb.client";
+import { type MediaRepository } from "./media.repository";
 import { MediaService } from "./media.service";
 
 describe("MediaService", () => {
   const search = jest.fn<TmdbClient["search"]>();
   const getDetails = jest.fn<TmdbClient["getDetails"]>();
-  const service = new MediaService({
-    search,
-    getDetails,
-  } as unknown as TmdbClient);
+  const upsertSnapshot = jest.fn<MediaRepository["upsertSnapshot"]>();
+  const service = new MediaService(
+    {
+      search,
+      getDetails,
+    } as unknown as TmdbClient,
+    { upsertSnapshot } as unknown as MediaRepository,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -77,6 +86,7 @@ describe("MediaService", () => {
       production_countries: [{ iso_3166_1: "KR" }],
       genres: [{ id: 35 }],
       runtime: 133,
+      status: "Released",
     });
 
     await expect(
@@ -84,6 +94,37 @@ describe("MediaService", () => {
     ).resolves.toMatchObject({
       id: "movie:496243",
       runtimeMinutes: 133,
+      releaseStatus: MediaReleaseStatus.Ended,
     });
+  });
+
+  it("refreshes the shared media snapshot from TMDB details", async () => {
+    getDetails.mockResolvedValue({
+      id: 1,
+      name: "A returning drama",
+      original_name: "A returning drama",
+      origin_country: ["KR"],
+      genres: [{ id: 18 }],
+      status: "Returning Series",
+    });
+    upsertSnapshot.mockImplementation((snapshot) =>
+      Promise.resolve({
+        ...snapshot,
+        _id: {} as never,
+        lastSyncedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }),
+    );
+
+    await expect(service.refresh(MediaType.Tv, 1)).resolves.toMatchObject({
+      id: "tv:1",
+      releaseStatus: MediaReleaseStatus.Airing,
+    });
+    expect(upsertSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        releaseStatus: MediaReleaseStatus.Airing,
+      }),
+    );
   });
 });

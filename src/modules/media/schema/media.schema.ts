@@ -1,6 +1,9 @@
 import { Schema, type Types } from "mongoose";
 
-import { MediaType } from "../../../common/types/media.types";
+import {
+  MediaReleaseStatus,
+  MediaType,
+} from "../../../common/types/media.types";
 
 export interface MediaSeasonDocument {
   tmdbSeasonId?: number;
@@ -30,6 +33,7 @@ export interface MediaDocument {
   runtimeMinutes?: number;
   totalEpisodes?: number;
   totalSeasons?: number;
+  releaseStatus?: MediaReleaseStatus;
   seasons?: MediaSeasonDocument[];
   tmdbVoteAverage?: number;
   tmdbVoteCount?: number;
@@ -75,6 +79,10 @@ export const MediaSchema = new Schema<MediaDocument>(
     runtimeMinutes: Number,
     totalEpisodes: Number,
     totalSeasons: Number,
+    releaseStatus: {
+      type: String,
+      enum: Object.values(MediaReleaseStatus),
+    },
     seasons: {
       type: [mediaSeasonSchema],
       default: undefined,

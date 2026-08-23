@@ -1,6 +1,11 @@
-import { MediaType, SearchMediaType } from "../../common/types/media.types";
+import {
+  MediaReleaseStatus,
+  MediaType,
+  SearchMediaType,
+} from "../../common/types/media.types";
 import {
   normalizeTmdbMediaDetails,
+  normalizeReleaseStatus,
   normalizeTmdbSearchResponse,
 } from "./tmdb.normalizer";
 
@@ -104,6 +109,7 @@ describe("TMDB normalization", () => {
         ],
         vote_average: 8.9,
         vote_count: 15_000,
+        status: "Ended",
       },
       MediaType.Tv,
     );
@@ -114,6 +120,7 @@ describe("TMDB normalization", () => {
       totalSeasons: 5,
       runtimeMinutes: 45,
       backdropUrl: "https://image.tmdb.org/t/p/w780/backdrop.jpg",
+      releaseStatus: MediaReleaseStatus.Ended,
       seasons: [
         {
           tmdbSeasonId: 3624,
@@ -141,6 +148,7 @@ describe("TMDB normalization", () => {
         production_countries: [{ iso_3166_1: "KR" }],
         genres: [{ id: 35 }],
         runtime: 133,
+        status: "Released",
       },
       MediaType.Movie,
     );
@@ -149,7 +157,26 @@ describe("TMDB normalization", () => {
       id: "movie:496243",
       originCountry: ["KR"],
       runtimeMinutes: 133,
+      releaseStatus: MediaReleaseStatus.Ended,
     });
+  });
+
+  it("groups TMDB production statuses for library filtering", () => {
+    expect(
+      normalizeReleaseStatus("Returning Series", MediaType.Tv),
+    ).toBe(MediaReleaseStatus.Airing);
+    expect(
+      normalizeReleaseStatus("In Production", MediaType.Tv),
+    ).toBe(MediaReleaseStatus.Upcoming);
+    expect(
+      normalizeReleaseStatus("Post Production", MediaType.Movie),
+    ).toBe(MediaReleaseStatus.Upcoming);
+    expect(
+      normalizeReleaseStatus("Released", MediaType.Movie),
+    ).toBe(MediaReleaseStatus.Ended);
+    expect(normalizeReleaseStatus("unexpected", MediaType.Tv)).toBe(
+      MediaReleaseStatus.Unknown,
+    );
   });
 
   it("rejects structurally invalid TMDB payloads", () => {
