@@ -19,6 +19,7 @@ import { DatabaseModule } from "./database/database.module";
 import { ActivityModule } from "./modules/activity/activity.module";
 import { CategoriesModule } from "./modules/categories/categories.module";
 import { CommentsModule } from "./modules/comments/comments.module";
+import { DataExportModule } from "./modules/data-export/data-export.module";
 import { DiscoveryModule } from "./modules/discovery/discovery.module";
 import { FriendsModule } from "./modules/friends/friends.module";
 import { HealthModule } from "./modules/health/health.module";
@@ -82,6 +83,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     ActivityModule,
     CategoriesModule,
     CommentsModule,
+    DataExportModule,
     DiscoveryModule,
     FriendsModule,
     HealthModule,

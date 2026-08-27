@@ -570,3 +570,17 @@ docker run --rm -p 8080:8080 --env-file .env k-drama-watchlist-server:local
 ```
 
 Cloud Run must provide production environment values through its secret and environment configuration. The application listens on `process.env.PORT` and stores no process-local user state.
+
+## Account data export
+
+Authenticated owners can request a portable archive from:
+
+```text
+GET /api/account/export
+```
+
+The non-cacheable, versioned JSON response contains the owner's account profile, privacy settings,
+categories, priority lanes, and complete personal library, including private notes, progress,
+ratings, and playback preferences. It deliberately excludes password hashes, sessions, verification
+and reset tokens, provider credentials, and other users' email addresses. The Angular profile page
+turns this response into a dated local JSON download.

@@ -14,5 +14,6 @@ import { PriorityService } from "./priority.service";
     PriorityRepository,
     PriorityService,
   ],
+  exports: [PriorityRepository],
 })
 export class PriorityModule {}
