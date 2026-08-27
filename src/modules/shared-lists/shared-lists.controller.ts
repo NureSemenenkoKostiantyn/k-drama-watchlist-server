@@ -10,6 +10,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from "@nestjs/common";
 import {
   AllowAnonymous,
@@ -18,6 +19,11 @@ import {
 } from "@thallesp/nestjs-better-auth";
 
 import { type DramaWatchAuth } from "../../auth/auth.factory";
+import {
+  type CacheControlResponse,
+  PUBLIC_DISCOVERY_CACHE_CONTROL,
+  setShareableResourceCacheControl,
+} from "../../common/http/cache-control";
 import {
   type PublicSharedListDetailsResponse,
   type PublicSharedListDiscoveryResponse,
@@ -194,6 +200,7 @@ export class PublicSharedListsController {
   ) {}
 
   @Get()
+  @Header("Cache-Control", PUBLIC_DISCOVERY_CACHE_CONTROL)
   list(
     @Query() query: PublicSharedListsQueryDto,
   ): Promise<PublicSharedListDiscoveryResponse> {
@@ -211,9 +218,12 @@ export class PublicSharedListsController {
   }
 
   @Get(":publicSlug")
-  get(
+  async get(
     @Param() params: PublicSharedListParamsDto,
+    @Res({ passthrough: true }) response: CacheControlResponse,
   ): Promise<PublicSharedListDetailsResponse> {
-    return this.service.getPublic(params.publicSlug);
+    const list = await this.service.getPublic(params.publicSlug);
+    setShareableResourceCacheControl(response, list.visibility);
+    return list;
   }
 }

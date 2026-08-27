@@ -9,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  Res,
 } from "@nestjs/common";
 import {
   AllowAnonymous,
@@ -17,6 +18,10 @@ import {
 } from "@thallesp/nestjs-better-auth";
 
 import { type DramaWatchAuth } from "../../auth/auth.factory";
+import {
+  type CacheControlResponse,
+  setShareableResourceCacheControl,
+} from "../../common/http/cache-control";
 import {
   type PublicWheelDetailsResponse,
   type WheelDetailsResponse,
@@ -233,9 +238,12 @@ export class PublicWheelsController {
   }
 
   @Get(":publicSlug")
-  get(
+  async get(
     @Param() params: PublicWheelParamsDto,
+    @Res({ passthrough: true }) response: CacheControlResponse,
   ): Promise<PublicWheelDetailsResponse> {
-    return this.wheelsService.getPublic(params.publicSlug);
+    const wheel = await this.wheelsService.getPublic(params.publicSlug);
+    setShareableResourceCacheControl(response, wheel.visibility);
+    return wheel;
   }
 }
