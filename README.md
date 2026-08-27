@@ -537,6 +537,19 @@ escaped Open Graph and Twitter document and redirects browsers to the canonical 
 It uses the first available TMDB backdrop, falls back to a poster, and applies `noindex` to unlisted
 links while preserving the existing public-safe response boundary.
 
+## SEO discovery
+
+```text
+GET /api/public/seo/sitemap.xml
+```
+
+The anonymous sitemap contains the public-list discovery route and canonical URLs for public shared
+lists and wheels. Private and unlisted resources are excluded at the database query boundary. Each
+resource includes its last modification time, the response is cached for one hour with stale
+fallback, and the result remains below the sitemap protocol's 50,000-URL limit. Public-list and
+wheel visibility/updated-time indexes support these queries. Server-rendered share pages include
+escaped schema.org `CollectionPage` and `ItemList` JSON-LD alongside Open Graph metadata.
+
 ## Container
 
 The Dockerfile includes a dependency-complete development target for the workspace Compose setup

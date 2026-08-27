@@ -28,6 +28,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { PriorityModule } from "./modules/priority/priority.module";
 import { ProfilesModule } from "./modules/profiles/profiles.module";
 import { SettingsModule } from "./modules/settings/settings.module";
+import { SeoModule } from "./modules/seo/seo.module";
 import { SharedListsModule } from "./modules/shared-lists/shared-lists.module";
 import { StatisticsModule } from "./modules/statistics/statistics.module";
 import { SuggestionsModule } from "./modules/suggestions/suggestions.module";
@@ -89,6 +90,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     NotificationsModule,
     PriorityModule,
     ProfilesModule,
+    SeoModule,
     SettingsModule,
     SharedListsModule,
     StatisticsModule,
