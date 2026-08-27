@@ -537,6 +537,19 @@ escaped Open Graph and Twitter document and redirects browsers to the canonical 
 It uses the first available TMDB backdrop, falls back to a poster, and applies `noindex` to unlisted
 links while preserving the existing public-safe response boundary.
 
+## SEO discovery
+
+```text
+GET /api/public/seo/sitemap.xml
+```
+
+The anonymous sitemap contains the public-list discovery route and canonical URLs for public shared
+lists and wheels. Private and unlisted resources are excluded at the database query boundary. Each
+resource includes its last modification time, the response is cached for one hour with stale
+fallback, and the result remains below the sitemap protocol's 50,000-URL limit. Public-list and
+wheel visibility/updated-time indexes support these queries. Server-rendered share pages include
+escaped schema.org `CollectionPage` and `ItemList` JSON-LD alongside Open Graph metadata.
+
 ## Container
 
 The Dockerfile includes a dependency-complete development target for the workspace Compose setup
@@ -557,3 +570,17 @@ docker run --rm -p 8080:8080 --env-file .env k-drama-watchlist-server:local
 ```
 
 Cloud Run must provide production environment values through its secret and environment configuration. The application listens on `process.env.PORT` and stores no process-local user state.
+
+## Account data export
+
+Authenticated owners can request a portable archive from:
+
+```text
+GET /api/account/export
+```
+
+The non-cacheable, versioned JSON response contains the owner's account profile, privacy settings,
+categories, priority lanes, and complete personal library, including private notes, progress,
+ratings, and playback preferences. It deliberately excludes password hashes, sessions, verification
+and reset tokens, provider credentials, and other users' email addresses. The Angular profile page
+turns this response into a dated local JSON download.

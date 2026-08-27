@@ -33,6 +33,10 @@ describe("OpenGraphService", () => {
     expect(html).toContain(
       'window.location.replace("https://dahyun.best/lists/public/weekend-list")',
     );
+    expect(html).toContain('<script type="application/ld+json">');
+    expect(html).toContain('"@type":"CollectionPage"');
+    expect(html).toContain('"@type":"TVSeries"');
+    expect(html).not.toContain('Weekend & <script> dramas');
   });
 
   it("keeps an unlisted wheel out of indexes and falls back to a poster", () => {

@@ -19,6 +19,7 @@ import { DatabaseModule } from "./database/database.module";
 import { ActivityModule } from "./modules/activity/activity.module";
 import { CategoriesModule } from "./modules/categories/categories.module";
 import { CommentsModule } from "./modules/comments/comments.module";
+import { DataExportModule } from "./modules/data-export/data-export.module";
 import { DiscoveryModule } from "./modules/discovery/discovery.module";
 import { FriendsModule } from "./modules/friends/friends.module";
 import { HealthModule } from "./modules/health/health.module";
@@ -28,6 +29,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { PriorityModule } from "./modules/priority/priority.module";
 import { ProfilesModule } from "./modules/profiles/profiles.module";
 import { SettingsModule } from "./modules/settings/settings.module";
+import { SeoModule } from "./modules/seo/seo.module";
 import { SharedListsModule } from "./modules/shared-lists/shared-lists.module";
 import { StatisticsModule } from "./modules/statistics/statistics.module";
 import { SuggestionsModule } from "./modules/suggestions/suggestions.module";
@@ -81,6 +83,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     ActivityModule,
     CategoriesModule,
     CommentsModule,
+    DataExportModule,
     DiscoveryModule,
     FriendsModule,
     HealthModule,
@@ -89,6 +92,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     NotificationsModule,
     PriorityModule,
     ProfilesModule,
+    SeoModule,
     SettingsModule,
     SharedListsModule,
     StatisticsModule,

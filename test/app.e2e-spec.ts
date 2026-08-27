@@ -2210,6 +2210,14 @@ describe("application (e2e)", () => {
       });
 
     await request(server)
+      .get("/api/public/seo/sitemap.xml")
+      .expect("Content-Type", /application\/xml/)
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.text).not.toContain(`/wheels/public/${publicSlug}`);
+      });
+
+    await request(server)
       .patch(`/api/wheels/${wheel.id}`)
       .set("Cookie", authenticatedCookie)
       .send({ visibility: "public" })
@@ -2219,6 +2227,13 @@ describe("application (e2e)", () => {
           visibility: "public",
           publicSlug,
         });
+      });
+
+    await request(server)
+      .get("/api/public/seo/sitemap.xml")
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.text).toContain(`/wheels/public/${publicSlug}`);
       });
 
     await request(server)
@@ -2790,6 +2805,13 @@ describe("application (e2e)", () => {
       });
 
     await request(server)
+      .get("/api/public/seo/sitemap.xml")
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.text).not.toContain(`/lists/public/${publicSlug}`);
+      });
+
+    await request(server)
       .patch(`/api/lists/${listId}`)
       .set("Cookie", authenticatedCookie)
       .send({ visibility: "public" })
@@ -2799,6 +2821,13 @@ describe("application (e2e)", () => {
           visibility: "public",
           publicSlug,
         });
+      });
+
+    await request(server)
+      .get("/api/public/seo/sitemap.xml")
+      .expect(200)
+      .expect((response: Response) => {
+        expect(response.text).toContain(`/lists/public/${publicSlug}`);
       });
 
     await request(server)

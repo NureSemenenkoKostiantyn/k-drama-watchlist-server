@@ -79,6 +79,11 @@ export interface WheelItemUpdate {
   isEnabled?: boolean;
 }
 
+export interface PublicWheelSitemapEntry {
+  publicSlug: string;
+  updatedAt: Date;
+}
+
 @Injectable()
 export class WheelsRepository {
   constructor(
@@ -114,6 +119,26 @@ export class WheelsRepository {
       .sort({ updatedAt: -1 })
       .exec();
     return documents.map(mapWheel);
+  }
+
+  async findPublicSitemapEntries(
+    limit: number,
+  ): Promise<PublicWheelSitemapEntry[]> {
+    const documents = await this.wheelModel
+      .find({
+        visibility: WheelVisibility.Public,
+        publicSlug: { $type: "string" },
+      })
+      .select({ publicSlug: 1, updatedAt: 1 })
+      .sort({ updatedAt: -1, _id: 1 })
+      .limit(limit)
+      .exec();
+
+    return documents.flatMap((document) =>
+      document.publicSlug
+        ? [{ publicSlug: document.publicSlug, updatedAt: document.updatedAt }]
+        : [],
+    );
   }
 
   async findById(

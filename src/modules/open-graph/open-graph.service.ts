@@ -18,6 +18,18 @@ interface OpenGraphDocumentInput {
   imageUrl?: string;
   imageAlt?: string;
   allowIndexing: boolean;
+  structuredData: Record<string, unknown>;
+}
+
+interface StructuredMedia {
+  mediaType: "movie" | "tv";
+  title: string;
+  originalTitle: string;
+  overview?: string;
+  posterUrl?: string;
+  backdropUrl?: string;
+  releaseDate?: string;
+  firstAirDate?: string;
 }
 
 @Injectable()
@@ -33,32 +45,50 @@ export class OpenGraphService {
   renderSharedList(list: PublicSharedListDetailsResponse): string {
     const canonicalUrl = `${this.frontendUrl}/lists/public/${encodeURIComponent(list.publicSlug)}`;
     const imageUrl = preferredMediaImage(list.items.map((item) => item.media));
+    const title = `${list.title} · Drama Watch`;
+    const description = normalizeDescription(
+      list.description,
+      `Explore ${list.itemCount} ${list.itemCount === 1 ? "title" : "titles"} in ${list.title}, a shared Drama Watch list.`,
+    );
     return renderDocument({
-      title: `${list.title} · Drama Watch`,
-      description: normalizeDescription(
-        list.description,
-        `Explore ${list.itemCount} ${list.itemCount === 1 ? "title" : "titles"} in ${list.title}, a shared Drama Watch list.`,
-      ),
+      title,
+      description,
       canonicalUrl,
       ...(imageUrl === undefined ? {} : { imageUrl }),
       imageAlt: `Preview of ${list.title}`,
       allowIndexing: list.visibility === SharedListVisibility.Public,
+      structuredData: buildCollectionStructuredData(
+        list.title,
+        description,
+        canonicalUrl,
+        list.itemCount,
+        list.items.map((item) => item.media),
+      ),
     });
   }
 
   renderWheel(wheel: PublicWheelDetailsResponse): string {
     const canonicalUrl = `${this.frontendUrl}/wheels/public/${encodeURIComponent(wheel.publicSlug)}`;
     const imageUrl = preferredMediaImage(wheel.items.map((item) => item.media));
+    const title = `${wheel.title} · Drama Watch`;
+    const description = normalizeDescription(
+      wheel.description,
+      `Explore ${wheel.itemCount} ${wheel.itemCount === 1 ? "candidate" : "candidates"} on ${wheel.title}, a Drama Watch wheel.`,
+    );
     return renderDocument({
-      title: `${wheel.title} · Drama Watch`,
-      description: normalizeDescription(
-        wheel.description,
-        `Explore ${wheel.itemCount} ${wheel.itemCount === 1 ? "candidate" : "candidates"} on ${wheel.title}, a Drama Watch wheel.`,
-      ),
+      title,
+      description,
       canonicalUrl,
       ...(imageUrl === undefined ? {} : { imageUrl }),
       imageAlt: `Preview of ${wheel.title}`,
       allowIndexing: wheel.visibility === WheelVisibility.Public,
+      structuredData: buildCollectionStructuredData(
+        wheel.title,
+        description,
+        canonicalUrl,
+        wheel.itemCount,
+        wheel.items.map((item) => item.media),
+      ),
     });
   }
 }
@@ -100,6 +130,7 @@ function renderDocument(input: OpenGraphDocumentInput): string {
     /</g,
     "\\u003c",
   );
+  const structuredData = serializeStructuredData(input.structuredData);
 
   return `<!doctype html>
 <html lang="en">
@@ -119,6 +150,7 @@ function renderDocument(input: OpenGraphDocumentInput): string {
     <meta name="twitter:card" content="${input.imageUrl ? "summary_large_image" : "summary"}">
     <meta name="twitter:title" content="${title}">
     <meta name="twitter:description" content="${description}">
+    <script type="application/ld+json">${structuredData}</script>
     <noscript><meta http-equiv="refresh" content="0;url=${canonicalUrl}"></noscript>
   </head>
   <body>
@@ -130,6 +162,58 @@ function renderDocument(input: OpenGraphDocumentInput): string {
     <script>window.location.replace(${redirectTarget});</script>
   </body>
 </html>`;
+}
+
+function buildCollectionStructuredData(
+  name: string,
+  description: string,
+  canonicalUrl: string,
+  itemCount: number,
+  media: StructuredMedia[],
+): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name,
+    description,
+    url: canonicalUrl,
+    isPartOf: {
+      "@type": "WebSite",
+      name: "Drama Watch",
+      url: new URL(canonicalUrl).origin,
+    },
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: itemCount,
+      itemListElement: media.map((item, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        item: {
+          "@type": item.mediaType === "movie" ? "Movie" : "TVSeries",
+          name: item.title,
+          ...(item.originalTitle === item.title
+            ? {}
+            : { alternateName: item.originalTitle }),
+          ...(item.overview === undefined
+            ? {}
+            : { description: normalizeDescription(item.overview, "") }),
+          ...(item.backdropUrl ?? item.posterUrl
+            ? { image: item.backdropUrl ?? item.posterUrl }
+            : {}),
+          ...(item.releaseDate ?? item.firstAirDate
+            ? { datePublished: item.releaseDate ?? item.firstAirDate }
+            : {}),
+        },
+      })),
+    },
+  };
+}
+
+function serializeStructuredData(value: Record<string, unknown>): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
 }
 
 function escapeHtml(value: string): string {

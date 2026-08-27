@@ -89,3 +89,4 @@ export const WheelSchema = new Schema<WheelDocument>(
 WheelSchema.index({ ownerId: 1, updatedAt: -1 });
 WheelSchema.index({ "members.userId": 1, updatedAt: -1 });
 WheelSchema.index({ publicSlug: 1 }, { sparse: true, unique: true });
+WheelSchema.index({ visibility: 1, updatedAt: -1 });

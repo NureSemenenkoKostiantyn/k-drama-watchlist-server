@@ -91,6 +91,11 @@ export interface StoredPublicSharedListPage {
   totalResults: number;
 }
 
+export interface PublicSharedListSitemapEntry {
+  publicSlug: string;
+  updatedAt: Date;
+}
+
 export interface StoredSharedListItemSummary {
   listId: Types.ObjectId;
   itemCount: number;
@@ -164,6 +169,26 @@ export class SharedListsRepository {
       lists: documents.map(mapList),
       totalResults,
     };
+  }
+
+  async findPublicSitemapEntries(
+    limit: number,
+  ): Promise<PublicSharedListSitemapEntry[]> {
+    const documents = await this.listModel
+      .find({
+        visibility: SharedListVisibility.Public,
+        publicSlug: { $type: "string" },
+      })
+      .select({ publicSlug: 1, updatedAt: 1 })
+      .sort({ updatedAt: -1, _id: 1 })
+      .limit(limit)
+      .exec();
+
+    return documents.flatMap((document) =>
+      document.publicSlug
+        ? [{ publicSlug: document.publicSlug, updatedAt: document.updatedAt }]
+        : [],
+    );
   }
 
   async findById(
