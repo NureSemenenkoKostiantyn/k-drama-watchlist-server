@@ -1,4 +1,4 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Query } from "@nestjs/common";
 import {
   Session,
   type UserSession,
@@ -6,6 +6,7 @@ import {
 
 import { type DramaWatchAuth } from "../../auth/auth.factory";
 import { type StatisticsOverviewResponse } from "../../common/types/statistics.types";
+import { StatisticsQueryDto } from "./dto/statistics-query.dto";
 import { StatisticsService } from "./statistics.service";
 
 @Controller("statistics")
@@ -15,7 +16,8 @@ export class StatisticsController {
   @Get()
   getOverview(
     @Session() session: UserSession<DramaWatchAuth>,
+    @Query() query: StatisticsQueryDto,
   ): Promise<StatisticsOverviewResponse> {
-    return this.statisticsService.getOverview(session.user.id);
+    return this.statisticsService.getOverview(session.user.id, query.statuses);
   }
 }

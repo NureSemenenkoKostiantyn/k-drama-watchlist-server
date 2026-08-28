@@ -29,6 +29,7 @@ import {
   type PublicSharedListDiscoveryResponse,
   type SharedListDetailsResponse,
   type SharedListInviteResponse,
+  type SharedListPendingInviteResponse,
   type SharedListItemResponse,
   type SharedListMemberResponse,
   type SharedListResponse,
@@ -43,6 +44,7 @@ import {
   SharedListInviteParamsDto,
   SharedListItemParamsDto,
   SharedListMemberParamsDto,
+  SharedListPendingInviteParamsDto,
   SharedListParamsDto,
   PublicSharedListParamsDto,
 } from "./dto/shared-list-params.dto";
@@ -77,6 +79,27 @@ export class SharedListsController {
     @Body() input: CreateSharedListInviteDto,
   ): Promise<SharedListInviteResponse> {
     return this.service.createInvite(session.user.id, params.listId, input);
+  }
+
+  @Get(":listId/invites")
+  listInvites(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: SharedListParamsDto,
+  ): Promise<SharedListPendingInviteResponse[]> {
+    return this.service.listInvites(session.user.id, params.listId);
+  }
+
+  @Delete(":listId/invites/:inviteId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  revokeInvite(
+    @Session() session: UserSession<DramaWatchAuth>,
+    @Param() params: SharedListPendingInviteParamsDto,
+  ): Promise<void> {
+    return this.service.revokeInvite(
+      session.user.id,
+      params.listId,
+      params.inviteId,
+    );
   }
 
   @Patch(":listId/members/:memberUserId")

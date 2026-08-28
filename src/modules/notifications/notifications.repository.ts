@@ -153,6 +153,16 @@ export class NotificationsRepository {
       )
       .exec();
   }
+
+  async deleteEntity(
+    userId: Types.ObjectId,
+    type: NotificationType,
+    entityId: Types.ObjectId,
+  ): Promise<void> {
+    await this.notificationModel
+      .deleteMany({ userId, type, entityId })
+      .exec();
+  }
 }
 
 function mapNotification(

@@ -2,12 +2,14 @@ import { Injectable } from "@nestjs/common";
 import { Types } from "mongoose";
 
 import { type StatisticsOverviewResponse } from "../../common/types/statistics.types";
+import { WatchStatus } from "../../common/types/library.types";
 import {
   StatisticsRepository,
   type StoredStatisticsOverview,
 } from "./statistics.repository";
 
 const COMPLETION_MONTHS = 12;
+const DEFAULT_STATUSES = [WatchStatus.Watching, WatchStatus.Watched];
 
 @Injectable()
 export class StatisticsService {
@@ -17,6 +19,7 @@ export class StatisticsService {
 
   async getOverview(
     authenticatedUserId: string,
+    statuses: WatchStatus[] = DEFAULT_STATUSES,
   ): Promise<StatisticsOverviewResponse> {
     const now = new Date();
     const months = recentMonthKeys(now);
@@ -24,6 +27,7 @@ export class StatisticsService {
       toObjectId(authenticatedUserId),
       monthStart(months[0]),
       now,
+      statuses,
     );
     return toResponse(stored, months);
   }

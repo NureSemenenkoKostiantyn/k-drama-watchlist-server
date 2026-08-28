@@ -52,9 +52,10 @@ export class StatisticsRepository {
     userId: Types.ObjectId,
     completedSince: Date,
     completedUntil: Date,
+    statuses: WatchStatus[],
   ): Promise<StoredStatisticsOverview> {
     const pipeline: PipelineStage[] = [
-      { $match: { userId } },
+      { $match: { userId, status: { $in: statuses } } },
       {
         $lookup: {
           from: "media",

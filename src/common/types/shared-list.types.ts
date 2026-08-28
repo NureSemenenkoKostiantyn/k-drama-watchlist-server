@@ -116,4 +116,13 @@ export interface SharedListInviteResponse {
   target: PublicUserProfileResponse;
   role: Exclude<SharedListRole, SharedListRole.Owner>;
   expiresAt: string;
+  createdAt: string;
+}
+
+export interface SharedListPendingInviteResponse {
+  id: string;
+  target: PublicUserProfileResponse;
+  role: Exclude<SharedListRole, SharedListRole.Owner>;
+  expiresAt: string;
+  createdAt: string;
 }

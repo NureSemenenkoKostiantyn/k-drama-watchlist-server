@@ -15,6 +15,11 @@ export class SharedListMemberParamsDto extends SharedListParamsDto {
   memberUserId!: string;
 }
 
+export class SharedListPendingInviteParamsDto extends SharedListParamsDto {
+  @IsMongoId()
+  inviteId!: string;
+}
+
 export class SharedListInviteParamsDto {
   @IsString()
   @Matches(/^(?:[a-f\d]{24}|[A-Za-z0-9_-]{43})$/)

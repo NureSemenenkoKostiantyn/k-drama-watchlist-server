@@ -2,6 +2,7 @@ import { jest } from "@jest/globals";
 import { Types } from "mongoose";
 
 import { MediaType } from "../../common/types/media.types";
+import { NotificationType } from "../../common/types/notification.types";
 import {
   SharedListRole,
   SharedListVisibility,
@@ -17,6 +18,7 @@ import { type StoredPublicUser } from "../users/users.repository";
 import { type UsersService } from "../users/users.service";
 import { type PublicSharedListsQueryDto } from "./dto/public-shared-lists-query.dto";
 import {
+  type StoredSharedListInvite,
   type StoredSharedList,
   type SharedListsRepository,
 } from "./shared-lists.repository";
@@ -187,4 +189,113 @@ describe("sharedListRoleForUser", () => {
     expect(sharedListRoleForUser(list, viewerId)).toBe(SharedListRole.Viewer);
     expect(sharedListRoleForUser(list, outsiderId)).toBeNull();
   });
+});
+
+describe("SharedListsService invitations", () => {
+  const ownerId = new Types.ObjectId();
+  const listId = new Types.ObjectId();
+  const targetId = new Types.ObjectId();
+  const inviteId = new Types.ObjectId();
+  const now = new Date("2026-08-28T12:00:00.000Z");
+  const findById = jest.fn<SharedListsRepository["findById"]>();
+  const findInvites = jest.fn<SharedListsRepository["findInvites"]>();
+  const deleteInviteForList =
+    jest.fn<SharedListsRepository["deleteInviteForList"]>();
+  const findStoredByIds = jest.fn<UsersService["findStoredByIds"]>();
+  const removeEntity = jest.fn<NotificationsService["removeEntity"]>();
+  const service = new SharedListsService(
+    {
+      findById,
+      findInvites,
+      deleteInviteForList,
+    } as unknown as SharedListsRepository,
+    {} as MediaRepository,
+    { removeEntity } as unknown as NotificationsService,
+    { findStoredByIds } as unknown as UsersService,
+    {} as ConfigService<Environment, true>,
+  );
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    findById.mockResolvedValue(buildOwnedList());
+    findInvites.mockResolvedValue([buildInvite()]);
+    deleteInviteForList.mockResolvedValue(buildInvite());
+    findStoredByIds.mockResolvedValue([buildTarget()]);
+    removeEntity.mockResolvedValue(undefined);
+  });
+
+  it("lists pending invitations with public target data", async () => {
+    await expect(
+      service.listInvites(ownerId.toHexString(), listId.toHexString()),
+    ).resolves.toEqual([
+      {
+        id: inviteId.toHexString(),
+        target: {
+          id: targetId.toHexString(),
+          username: "mina",
+          displayUsername: "Mina",
+          name: "Myoui Mina",
+          joinedAt: now.toISOString(),
+        },
+        role: SharedListRole.Viewer,
+        expiresAt: new Date("2026-09-04T12:00:00.000Z").toISOString(),
+        createdAt: now.toISOString(),
+      },
+    ]);
+    expect(findInvites).toHaveBeenCalledWith(listId);
+  });
+
+  it("revokes an owner-scoped invitation and its notification", async () => {
+    await expect(
+      service.revokeInvite(
+        ownerId.toHexString(),
+        listId.toHexString(),
+        inviteId.toHexString(),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(deleteInviteForList).toHaveBeenCalledWith(listId, inviteId);
+    expect(removeEntity).toHaveBeenCalledWith({
+      userId: targetId,
+      type: NotificationType.SharedListInvite,
+      entityId: inviteId,
+    });
+  });
+
+  function buildOwnedList(): StoredSharedList {
+    return {
+      _id: listId,
+      ownerId,
+      title: "Weekend dramas",
+      visibility: SharedListVisibility.Private,
+      members: [
+        { userId: ownerId, role: SharedListRole.Owner, joinedAt: now },
+      ],
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
+  function buildInvite(): StoredSharedListInvite {
+    return {
+      _id: inviteId,
+      listId,
+      createdByUserId: ownerId,
+      targetUserId: targetId,
+      tokenHash: "hashed-token",
+      role: SharedListRole.Viewer,
+      expiresAt: new Date("2026-09-04T12:00:00.000Z"),
+      createdAt: now,
+    };
+  }
+
+  function buildTarget(): StoredPublicUser {
+    return {
+      _id: targetId,
+      username: "mina",
+      displayUsername: "Mina",
+      name: "Myoui Mina",
+      createdAt: now,
+    };
+  }
 });

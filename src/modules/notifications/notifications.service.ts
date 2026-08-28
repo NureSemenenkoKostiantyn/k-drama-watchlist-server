@@ -129,6 +129,30 @@ export class NotificationsService {
       );
     }
   }
+
+  async removeEntity(input: {
+    userId: Types.ObjectId;
+    type: NotificationType;
+    entityId: Types.ObjectId;
+  }): Promise<void> {
+    try {
+      await this.notificationsRepository.deleteEntity(
+        input.userId,
+        input.type,
+        input.entityId,
+      );
+    } catch (error: unknown) {
+      this.logger.error(
+        {
+          error,
+          notificationType: input.type,
+          recipientId: input.userId.toHexString(),
+          entityId: input.entityId.toHexString(),
+        },
+        "Notification could not be removed",
+      );
+    }
+  }
 }
 
 function toNotificationResponse(
