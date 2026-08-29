@@ -420,7 +420,7 @@ describe("application (e2e)", () => {
       .expect(400);
 
     await request(server)
-      .get("/api/users/missing_user")
+      .get(`/api/users/${new ObjectId().toHexString()}`)
       .set("Cookie", authenticatedCookie)
       .expect(404)
       .expect({
