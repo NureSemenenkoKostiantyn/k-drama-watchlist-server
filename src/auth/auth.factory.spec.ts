@@ -3,7 +3,12 @@ import { jest } from "@jest/globals";
 
 import { NodeEnvironment } from "../config/environment";
 import { type TransactionalEmailService } from "../integrations/email/transactional-email.service";
-import { createDramaWatchAuth } from "./auth.factory";
+import {
+  createDramaWatchAuth,
+  createMcpResourceUrl,
+  MCP_REQUIRED_SCOPES,
+  MCP_SCOPES,
+} from "./auth.factory";
 
 describe("createDramaWatchAuth", () => {
   const sendEmailVerification = jest.fn(() => Promise.resolve());
@@ -17,11 +22,29 @@ describe("createDramaWatchAuth", () => {
     jest.clearAllMocks();
   });
 
-  it("configures same-origin auth routes and the username plugin", () => {
-    const nativeConnection = {
+  function createNativeConnection(): Parameters<
+    typeof createDramaWatchAuth
+  >[0] {
+    const collection = {
+      aggregate: jest.fn(() => ({
+        toArray: jest.fn(() => Promise.resolve([])),
+      })),
+      createIndex: jest.fn(() => Promise.resolve("index")),
+      insertOne: jest.fn(() =>
+        Promise.resolve({ insertedId: "test-object-id" }),
+      ),
+    };
+
+    return {
       client: {},
-      database: {},
+      database: {
+        collection: jest.fn(() => collection),
+      },
     } as unknown as Parameters<typeof createDramaWatchAuth>[0];
+  }
+
+  it("configures same-origin auth routes and the username plugin", () => {
+    const nativeConnection = createNativeConnection();
     const environment: Parameters<typeof createDramaWatchAuth>[1] = {
       NODE_ENV: NodeEnvironment.Test,
       BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",
@@ -56,13 +79,45 @@ describe("createDramaWatchAuth", () => {
     expect(auth.options.plugins?.map((plugin) => plugin.id)).toContain(
       "username",
     );
+    expect(auth.options.plugins?.map((plugin) => plugin.id)).toEqual(
+      expect.arrayContaining(["jwt", "oauth-provider", "cimd"]),
+    );
+    expect(createMcpResourceUrl(environment.BETTER_AUTH_URL)).toBe(
+      "http://localhost:8080/api/mcp",
+    );
+    expect(MCP_SCOPES).toEqual([
+      "openid",
+      "profile",
+      ...MCP_REQUIRED_SCOPES,
+    ]);
+  });
+
+  it("uses the public app for MCP login and consent redirects", () => {
+    const nativeConnection = createNativeConnection();
+    const environment: Parameters<typeof createDramaWatchAuth>[1] = {
+      NODE_ENV: NodeEnvironment.Production,
+      BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",
+      BETTER_AUTH_URL: "https://dahyun.best",
+      FRONTEND_URL: "https://dahyun.best",
+    };
+
+    const auth = createDramaWatchAuth(
+      nativeConnection,
+      environment,
+      emailService,
+    );
+    const oauthProvider = auth.options.plugins?.find(
+      (plugin) => plugin.id === "oauth-provider",
+    );
+
+    expect(oauthProvider).toBeDefined();
+    expect(createMcpResourceUrl(environment.BETTER_AUTH_URL)).toBe(
+      "https://dahyun.best/api/mcp",
+    );
   });
 
   it("keeps the Firebase session cookie name exact and secure in production", () => {
-    const nativeConnection = {
-      client: {},
-      database: {},
-    } as unknown as Parameters<typeof createDramaWatchAuth>[0];
+    const nativeConnection = createNativeConnection();
     const environment: Parameters<typeof createDramaWatchAuth>[1] = {
       NODE_ENV: NodeEnvironment.Production,
       BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",
@@ -82,10 +137,7 @@ describe("createDramaWatchAuth", () => {
   });
 
   it("delegates Better Auth links to the transactional sender", async () => {
-    const nativeConnection = {
-      client: {},
-      database: {},
-    } as unknown as Parameters<typeof createDramaWatchAuth>[0];
+    const nativeConnection = createNativeConnection();
     const environment: Parameters<typeof createDramaWatchAuth>[1] = {
       NODE_ENV: NodeEnvironment.Test,
       BETTER_AUTH_SECRET: "test-only-secret-with-at-least-32-characters",

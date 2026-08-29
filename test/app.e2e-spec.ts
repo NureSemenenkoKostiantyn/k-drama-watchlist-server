@@ -247,6 +247,58 @@ describe("application (e2e)", () => {
       .expect({ status: "ok" });
   });
 
+  it("publishes MCP OAuth discovery from the standard root path", async () => {
+    const response = await request(server)
+      .get("/.well-known/oauth-protected-resource")
+      .expect(200);
+
+    const metadata = readObject(
+      response.body as unknown,
+      "MCP resource metadata",
+    );
+    expect(metadata["resource"]).toBe(
+      "http://localhost:8080/api/mcp",
+    );
+    expect(metadata["scopes_supported"]).toEqual(
+      expect.arrayContaining([
+        "mcp:library:read",
+        "mcp:social:read",
+      ]) as unknown,
+    );
+  });
+
+  it("requires an audience-bound OAuth token for MCP requests", async () => {
+    const response = await request(server)
+      .post("/api/mcp")
+      .set("Content-Type", "application/json")
+      .set("Accept", "application/json, text/event-stream")
+      .send({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2026-07-28",
+          capabilities: {},
+          clientInfo: { name: "e2e", version: "1.0.0" },
+        },
+      })
+      .expect(401);
+
+    expect(response.headers["www-authenticate"]).toContain(
+      "resource_metadata=",
+    );
+    const errorResponse = readObject(
+      response.body as unknown,
+      "MCP authentication error",
+    );
+    expect(errorResponse["jsonrpc"]).toBe("2.0");
+    expect(
+      readObject(errorResponse["error"], "MCP authentication error body")[
+        "code"
+      ],
+    ).toBe(-32_000);
+  });
+
   it("re-adds JSON parsing and validation for ordinary Nest routes", async () => {
     await request(server)
       .post("/api/test/json")

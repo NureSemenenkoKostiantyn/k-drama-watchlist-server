@@ -25,6 +25,7 @@ import { FriendsModule } from "./modules/friends/friends.module";
 import { HealthModule } from "./modules/health/health.module";
 import { LibraryModule } from "./modules/library/library.module";
 import { MediaModule } from "./modules/media/media.module";
+import { McpModule } from "./modules/mcp/mcp.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { PriorityModule } from "./modules/priority/priority.module";
 import { ProfilesModule } from "./modules/profiles/profiles.module";
@@ -88,6 +89,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     FriendsModule,
     HealthModule,
     MediaModule,
+    McpModule,
     LibraryModule,
     NotificationsModule,
     PriorityModule,
