@@ -1,6 +1,9 @@
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { betterAuth } from "better-auth/minimal";
-import { username } from "better-auth/plugins";
+import { jwt, username } from "better-auth/plugins";
+import { cimd } from "@better-auth/cimd";
+import { fetchClientMetadataResource } from "@better-auth/cimd/node";
+import { mcp } from "@better-auth/mcp";
 
 import { NodeEnvironment, type Environment } from "../config/environment";
 import { type MongooseDatabaseService } from "../database/mongoose-database.service";
@@ -17,6 +20,25 @@ type AuthEnvironment = Pick<
   | "FRONTEND_URL"
   | "NODE_ENV"
 >;
+
+export const MCP_SCOPES = [
+  "openid",
+  "profile",
+  "mcp:library:read",
+  "mcp:social:read",
+  "mcp:library:write",
+  "mcp:social:write",
+] as const;
+
+export const MCP_READ_SCOPES = [
+  "mcp:library:read",
+  "mcp:social:read",
+] as const;
+
+export const MCP_WRITE_SCOPES = [
+  "mcp:library:write",
+  "mcp:social:write",
+] as const;
 
 export function createDramaWatchAuth(
   nativeConnection: NativeConnection,
@@ -62,6 +84,20 @@ export function createDramaWatchAuth(
         maxUsernameLength: 30,
         minUsernameLength: 3,
       }),
+      jwt(),
+      mcp({
+        consentPage: applicationUrl(
+          environment.FRONTEND_URL,
+          "/mcp/consent",
+        ),
+        loginPage: applicationUrl(environment.FRONTEND_URL, "/login"),
+        resource: createMcpResourceUrl(environment.BETTER_AUTH_URL),
+        scopes: [...MCP_SCOPES],
+      }),
+      cimd({
+        fetchClientMetadataResource,
+        metadataProfile: "mcp-2026-07-28",
+      }),
     ],
     secret: environment.BETTER_AUTH_SECRET,
     trustedOrigins: [environment.FRONTEND_URL],
@@ -79,6 +115,14 @@ export function createDramaWatchAuth(
       useSecureCookies: false,
     },
   });
+}
+
+export function createMcpResourceUrl(baseUrl: string): string {
+  return new URL("/api/mcp", baseUrl).toString();
+}
+
+function applicationUrl(baseUrl: string, path: string): string {
+  return new URL(path, baseUrl).toString();
 }
 
 export type DramaWatchAuth = ReturnType<typeof createDramaWatchAuth>;

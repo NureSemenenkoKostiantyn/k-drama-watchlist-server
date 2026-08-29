@@ -401,6 +401,26 @@ export class SharedListsRepository {
     return mapInvite(document);
   }
 
+  async findInvites(
+    listId: Types.ObjectId,
+  ): Promise<StoredSharedListInvite[]> {
+    const documents = await this.inviteModel
+      .find({ listId, expiresAt: { $gt: new Date() } })
+      .sort({ createdAt: -1, _id: 1 })
+      .exec();
+    return documents.map(mapInvite);
+  }
+
+  async deleteInviteForList(
+    listId: Types.ObjectId,
+    inviteId: Types.ObjectId,
+  ): Promise<StoredSharedListInvite | null> {
+    const document = await this.inviteModel
+      .findOneAndDelete({ _id: inviteId, listId })
+      .exec();
+    return document ? mapInvite(document) : null;
+  }
+
   async findInviteByTokenHash(
     tokenHash: string,
     targetUserId: Types.ObjectId,

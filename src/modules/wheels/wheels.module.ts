@@ -27,6 +27,6 @@ import { WheelsService } from "./wheels.service";
     WheelsRepository,
     WheelsService,
   ],
-  exports: [WheelsRepository],
+  exports: [WheelsRepository, WheelsService],
 })
 export class WheelsModule {}

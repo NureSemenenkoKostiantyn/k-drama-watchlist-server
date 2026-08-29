@@ -9,5 +9,6 @@ import { StatisticsService } from "./statistics.service";
   imports: [LibraryModule],
   controllers: [StatisticsController],
   providers: [StatisticsRepository, StatisticsService],
+  exports: [StatisticsService],
 })
 export class StatisticsModule {}

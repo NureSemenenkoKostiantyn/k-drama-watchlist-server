@@ -24,6 +24,8 @@ describe("NotificationsService", () => {
     jest.fn<NotificationsRepository["markRead"]>();
   const markAllRead =
     jest.fn<NotificationsRepository["markAllRead"]>();
+  const deleteEntity =
+    jest.fn<NotificationsRepository["deleteEntity"]>();
   const findStoredByIds =
     jest.fn<UsersService["findStoredByIds"]>();
   const service = new NotificationsService(
@@ -33,6 +35,7 @@ describe("NotificationsService", () => {
       publish,
       markRead,
       markAllRead,
+      deleteEntity,
     } as unknown as NotificationsRepository,
     { findStoredByIds } as unknown as UsersService,
   );
@@ -99,6 +102,22 @@ describe("NotificationsService", () => {
     ).resolves.toBeUndefined();
     expect(logger).toHaveBeenCalled();
     logger.mockRestore();
+  });
+
+  it("removes entity notifications when their action is revoked", async () => {
+    deleteEntity.mockResolvedValue(undefined);
+
+    await service.removeEntity({
+      userId,
+      type: NotificationType.SharedListInvite,
+      entityId: notification.entityId!,
+    });
+
+    expect(deleteEntity).toHaveBeenCalledWith(
+      userId,
+      NotificationType.SharedListInvite,
+      notification.entityId,
+    );
   });
 });
 

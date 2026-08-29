@@ -13,6 +13,7 @@ import {
   type PublicSharedListPreviewMediaResponse,
   type SharedListDetailsResponse,
   type SharedListInviteResponse,
+  type SharedListPendingInviteResponse,
   type SharedListItemResponse,
   type SharedListMemberResponse,
   type SharedListResponse,
@@ -407,7 +408,66 @@ export class SharedListsService {
       target: toPublicUserProfile(target),
       role: input.role,
       expiresAt: expiresAt.toISOString(),
+      createdAt: invite.createdAt.toISOString(),
     };
+  }
+
+  async listInvites(
+    authenticatedUserId: string,
+    listId: string,
+  ): Promise<SharedListPendingInviteResponse[]> {
+    const ownerId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireOwner(ownerId, listIdObject);
+    const invites = await this.repository.findInvites(listIdObject);
+    const targets = await this.usersService.findStoredByIds(
+      uniqueObjectIds(
+        invites.flatMap((invite) =>
+          invite.targetUserId ? [invite.targetUserId] : [],
+        ),
+      ),
+    );
+    const targetsById = new Map(
+      targets.map((target) => [target._id.toHexString(), target]),
+    );
+
+    return invites.flatMap((invite) => {
+      if (!invite.targetUserId) return [];
+      const target = targetsById.get(invite.targetUserId.toHexString());
+      return target
+        ? [
+            {
+              id: invite._id.toHexString(),
+              target: toPublicUserProfile(target),
+              role: invite.role,
+              expiresAt: invite.expiresAt.toISOString(),
+              createdAt: invite.createdAt.toISOString(),
+            },
+          ]
+        : [];
+    });
+  }
+
+  async revokeInvite(
+    authenticatedUserId: string,
+    listId: string,
+    inviteId: string,
+  ): Promise<void> {
+    const ownerId = toObjectId(authenticatedUserId);
+    const listIdObject = new Types.ObjectId(listId);
+    await this.requireOwner(ownerId, listIdObject);
+    const invite = await this.repository.deleteInviteForList(
+      listIdObject,
+      new Types.ObjectId(inviteId),
+    );
+    if (!invite) throw inviteNotFound();
+    if (invite.targetUserId) {
+      await this.notificationsService.removeEntity({
+        userId: invite.targetUserId,
+        type: NotificationType.SharedListInvite,
+        entityId: invite._id,
+      });
+    }
   }
 
   async acceptInvite(
@@ -813,6 +873,14 @@ function invalidInvite(): ApiException {
     statusCode: HttpStatus.BAD_REQUEST,
     code: "INVITE_INVALID",
     message: "This shared-list invitation is invalid or expired.",
+  });
+}
+
+function inviteNotFound(): ApiException {
+  return new ApiException({
+    statusCode: HttpStatus.NOT_FOUND,
+    code: "NOT_FOUND",
+    message: "Shared-list invitation not found.",
   });
 }
 

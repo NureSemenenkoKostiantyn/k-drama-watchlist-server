@@ -5,6 +5,7 @@ import {
   type StatisticsRepository,
   type StoredStatisticsOverview,
 } from "./statistics.repository";
+import { WatchStatus } from "../../common/types/library.types";
 import { StatisticsService } from "./statistics.service";
 
 describe("StatisticsService", () => {
@@ -32,6 +33,7 @@ describe("StatisticsService", () => {
       userId,
       new Date("2025-09-01T00:00:00.000Z"),
       new Date("2026-08-23T12:00:00.000Z"),
+      [WatchStatus.Watching, WatchStatus.Watched],
     );
     expect(response.totals.averageRating).toBe(8.67);
     expect(response.completedByMonth).toHaveLength(12);
@@ -43,6 +45,17 @@ describe("StatisticsService", () => {
       month: "2026-08",
       count: 2,
     });
+  });
+
+  it("passes an explicitly selected status scope to the repository", async () => {
+    await service.getOverview(userId.toHexString(), [WatchStatus.ToWatch]);
+
+    expect(getOverview).toHaveBeenCalledWith(
+      userId,
+      new Date("2025-09-01T00:00:00.000Z"),
+      new Date("2026-08-23T12:00:00.000Z"),
+      [WatchStatus.ToWatch],
+    );
   });
 
   function buildStoredOverview(): StoredStatisticsOverview {

@@ -30,6 +30,6 @@ import { SharedListsService } from "./shared-lists.service";
     SharedListsRepository,
     SharedListsService,
   ],
-  exports: [COMMENT_MODEL, SharedListsRepository],
+  exports: [COMMENT_MODEL, SharedListsRepository, SharedListsService],
 })
 export class SharedListsModule {}
