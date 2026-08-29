@@ -1,0 +1,106 @@
+name: Verify backend
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-verification-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Backend quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      mongodb:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.22.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify generated OpenAPI contract
+        run: npm run contracts:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm run test:ci
+
+      - name: Run MongoDB-backed E2E tests
+        run: npm run test:e2e:ci
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Build production container
+        run: docker build --tag drama-watch-api-ci:${{ github.sha }} .
+
+      - name: Start production container
+        run: >-
+          docker run --detach
+          --name drama-watch-api-ci
+          --network host
+          --env NODE_ENV=test
+          --env PORT=18080
+          --env MONGODB_URI=mongodb://127.0.0.1:27017
+          --env MONGODB_DB_NAME=drama_watch_ci_smoke
+          --env BETTER_AUTH_SECRET=ci-only-secret-with-at-least-32-characters
+          --env BETTER_AUTH_URL=http://localhost:18080
+          --env FRONTEND_URL=http://localhost:4200
+          --env TMDB_ACCESS_TOKEN=ci-tmdb-token
+          --env RESEND_API_KEY=re_ci-only-key
+          --env "EMAIL_FROM=Drama Watch <auth@example.com>"
+          --env LOG_LEVEL=info
+          drama-watch-api-ci:${{ github.sha }}
+
+      - name: Verify container health
+        shell: bash
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/api/health; then
+              exit 0
+            fi
+
+            if ! docker inspect --format '{{.State.Running}}' drama-watch-api-ci | grep --quiet true; then
+              break
+            fi
+
+            sleep 2
+          done
+
+          docker logs drama-watch-api-ci
+          exit 1
+
+      - name: Stop smoke-test container
+        if: always()
+        run: docker rm --force drama-watch-api-ci || true

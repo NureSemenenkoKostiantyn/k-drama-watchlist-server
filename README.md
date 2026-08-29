@@ -47,6 +47,8 @@ The current backend foundation provides:
   analytics data.
 - An authenticated Streamable HTTP MCP endpoint with OAuth discovery, explicit read/write scopes,
   and owner-scoped library, shared-list, and wheel tools.
+- A generated OpenAPI 3.1 contract for public media, library, statistics, friendship, suggestion,
+  shared-list, and wheel requests and responses.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
@@ -158,6 +160,8 @@ a sender accepted by the configured Resend account.
 |---|---|
 | `npm run dev` | Start NestJS in watch mode. |
 | `npm run build` | Compile the production application into `dist`. |
+| `npm run contracts:generate` | Regenerate the versioned OpenAPI document and its NestJS runtime module. |
+| `npm run contracts:check` | Fail when generated API contract artifacts are stale. |
 | `npm start` | Run the compiled application. |
 | `npm run lint` | Run ESLint without modifying files. |
 | `npm run typecheck` | Type-check source and tests without emitting files. |
@@ -168,6 +172,17 @@ a sender accepted by the configured Resend account.
 
 Start the Compose MongoDB service before running `npm run test:e2e` from the host. The suite refuses
 to clear any database whose name is not exactly `drama_watch_test`.
+
+## API contract
+
+The NestJS public request and response types are the source for
+`openapi/drama-watch.openapi.json`. The same generated document is served anonymously from
+`GET /api/openapi.json`, while internal Mongoose documents are deliberately excluded. Run
+`npm run contracts:generate` after changing a covered DTO or response type and commit both generated
+artifacts. CI runs `npm run contracts:check` so stale output cannot be merged.
+
+The Angular repository consumes this document with `openapi-typescript`. Merge and deploy a server
+contract change before merging the corresponding generated client update.
 
 ## Authentication
 
@@ -597,6 +612,24 @@ docker run --rm -p 8080:8080 --env-file .env k-drama-watchlist-server:local
 ```
 
 Cloud Run must provide production environment values through its secret and environment configuration. The application listens on `process.env.PORT` and stores no process-local user state.
+
+## Backend deployment gate
+
+GitHub Actions runs the `Backend quality gate` job for pull requests and pushes to `main`. The job
+verifies the generated OpenAPI contract, lint and TypeScript checks, unit tests, MongoDB-backed E2E
+tests against the guarded `drama_watch_test` database, the NestJS production build, and startup of
+the final non-root container through `GET /api/health`.
+
+To make this a hard gate before the existing Cloud Build trigger deploys `main`, configure the
+repository's `main` branch ruleset to:
+
+- require a pull request before merging;
+- require the `Backend quality gate` status check;
+- require branches to be up to date before merging; and
+- disallow direct pushes and bypasses for the accounts that normally ship releases.
+
+Cloud Build should continue to trigger only from updates to `main`. With those rules in place, it
+receives only commits that passed the backend verification workflow.
 
 ## Account data export
 

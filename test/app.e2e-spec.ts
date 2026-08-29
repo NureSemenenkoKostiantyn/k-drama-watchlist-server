@@ -69,6 +69,7 @@ describe("application (e2e)", () => {
   let authenticatedCookie: string;
   let rateLimitedCookie: string;
   let otherUserCookie: string;
+  let otherUserId: string;
   let emailService: CapturingTransactionalEmailService;
   let tmdbDiscover: jest.MockedFunction<TmdbClient["discover"]>;
 
@@ -231,6 +232,19 @@ describe("application (e2e)", () => {
       otherUserCookie,
       "other_search_test",
     );
+
+    const otherSessionResponse = await request(server)
+      .get("/api/auth/get-session")
+      .set("Cookie", otherUserCookie)
+      .expect(200);
+    const otherSession = readObject(
+      otherSessionResponse.body as unknown,
+      "Other user session",
+    );
+    otherUserId = readString(
+      readObject(otherSession["user"], "Other user session profile")["id"],
+      "Other user ID",
+    );
   }, 60_000);
 
   afterAll(async () => {
@@ -336,7 +350,7 @@ describe("application (e2e)", () => {
 
   it("finds public profiles without exposing private auth fields", async () => {
     const profileResponse = await request(server)
-      .get("/api/users/other_search_test")
+      .get(`/api/users/${otherUserId}`)
       .expect(200);
 
     expect(profileResponse.body).toMatchObject({
@@ -406,7 +420,7 @@ describe("application (e2e)", () => {
       .expect(400);
 
     await request(server)
-      .get("/api/users/missing_user")
+      .get(`/api/users/${new ObjectId().toHexString()}`)
       .set("Cookie", authenticatedCookie)
       .expect(404)
       .expect({
@@ -1719,7 +1733,7 @@ describe("application (e2e)", () => {
       .expect(200);
 
     await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .set("Cookie", authenticatedCookie)
       .expect(403)
       .expect({
@@ -1740,7 +1754,7 @@ describe("application (e2e)", () => {
       });
 
     const friendLibraryResponse = await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .query({
         status: "watching",
         mediaType: "tv",
@@ -1789,7 +1803,7 @@ describe("application (e2e)", () => {
     );
 
     const sortedLibraryResponse = await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .query({ sort: "title_asc" })
       .set("Cookie", authenticatedCookie)
       .expect(200);
@@ -1814,7 +1828,7 @@ describe("application (e2e)", () => {
     ).toEqual(["Another show", "Goblin"]);
 
     await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .query({ yearFrom: 2017, yearTo: 2020 })
       .set("Cookie", authenticatedCookie)
       .expect(200)
@@ -1827,7 +1841,7 @@ describe("application (e2e)", () => {
       });
 
     await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .query({ yearFrom: 2025, yearTo: 2020 })
       .set("Cookie", authenticatedCookie)
       .expect(400)
@@ -1840,10 +1854,10 @@ describe("application (e2e)", () => {
       });
 
     await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .expect(403);
     await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .set("Cookie", rateLimitedCookie)
       .expect(403);
 
@@ -1854,7 +1868,7 @@ describe("application (e2e)", () => {
       .expect(200);
 
     await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .expect(200)
       .expect((response: Response) => {
         expect(response.body).toMatchObject({
@@ -1871,7 +1885,7 @@ describe("application (e2e)", () => {
       .expect(200);
 
     await request(server)
-      .get("/api/users/other_search_test/library")
+      .get(`/api/users/${otherUserId}/library`)
       .set("Cookie", otherUserCookie)
       .expect(200)
       .expect((response: Response) => {
