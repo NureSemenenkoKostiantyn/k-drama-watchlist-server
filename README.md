@@ -45,6 +45,8 @@ The current backend foundation provides:
   ratings.
 - Owner-only personal statistics computed from library and shared-media records without duplicating
   analytics data.
+- An authenticated Streamable HTTP MCP endpoint with OAuth discovery, explicit read/write scopes,
+  and owner-scoped library, shared-list, and wheel tools.
 - A consistent JSON API error shape.
 - Jest unit tests and Supertest end-to-end tests.
 - A production container image suitable for Google Cloud Run.
@@ -187,6 +189,31 @@ Keep these settings together when changing authentication or hosting configurati
 Ordinary API routes are protected by the integration's global guard. Health checks and other
 intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the
 current user from the authenticated session rather than accepting a user ID as authorization proof.
+
+## Model Context Protocol
+
+The modern Streamable HTTP MCP endpoint is available at `/api/mcp`. MCP clients discover its OAuth
+configuration through the protected-resource and authorization-server metadata below `/.well-known`.
+The server accepts the current MCP protocol envelope and rejects the deprecated legacy HTTP shape.
+
+Authorization is separated into four explicit permissions:
+
+- `mcp:library:read` exposes media search/details plus the authenticated user's library and
+  statistics.
+- `mcp:social:read` exposes shared lists and wheels available to the authenticated user.
+- `mcp:library:write` can add, update, rate, or remove the authenticated user's library entries.
+- `mcp:social:write` can create and delete shared lists or wheels, add shared media candidates, and
+  persist wheel spins.
+
+Only tools covered by the access token's approved scopes are registered in that MCP session. No MCP
+tool accepts a user ID as authorization evidence. Destructive tools require a literal
+`confirm: true` argument and advertise the MCP destructive annotation. Write tools call the same
+owner- and role-authorized services as the HTTP API, and list/wheel candidates reuse the single
+shared media snapshot for each TMDB title.
+
+For production, configure an MCP client with `https://dahyun.best/api/mcp`. Firebase Hosting forwards
+both `/api/**` and `/.well-known/**` to Cloud Run so OAuth metadata, consent, and the transport share
+the public application origin.
 
 ## API errors
 

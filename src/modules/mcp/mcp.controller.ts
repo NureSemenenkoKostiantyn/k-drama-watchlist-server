@@ -1,4 +1,4 @@
-import { All, Controller, Req, Res } from "@nestjs/common";
+import { All, Controller, Post, Req, Res } from "@nestjs/common";
 import { AllowAnonymous } from "@thallesp/nestjs-better-auth";
 import { AuthService } from "@thallesp/nestjs-better-auth";
 import { toNodeHandler } from "better-auth/node";
@@ -11,7 +11,7 @@ import { McpService } from "./mcp.service";
 export class McpController {
   constructor(private readonly mcpService: McpService) {}
 
-  @All()
+  @Post()
   @AllowAnonymous()
   handle(@Req() request: Request, @Res() response: Response): Promise<void> {
     return this.mcpService.handle(request, response);

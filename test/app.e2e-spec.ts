@@ -263,6 +263,8 @@ describe("application (e2e)", () => {
       expect.arrayContaining([
         "mcp:library:read",
         "mcp:social:read",
+        "mcp:library:write",
+        "mcp:social:write",
       ]) as unknown,
     );
   });
@@ -297,6 +299,10 @@ describe("application (e2e)", () => {
         "code"
       ],
     ).toBe(-32_000);
+  });
+
+  it("does not expose the modern MCP transport over GET", async () => {
+    await request(server).get("/api/mcp").expect(404);
   });
 
   it("re-adds JSON parsing and validation for ordinary Nest routes", async () => {

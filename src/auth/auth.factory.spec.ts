@@ -6,8 +6,9 @@ import { type TransactionalEmailService } from "../integrations/email/transactio
 import {
   createDramaWatchAuth,
   createMcpResourceUrl,
-  MCP_REQUIRED_SCOPES,
+  MCP_READ_SCOPES,
   MCP_SCOPES,
+  MCP_WRITE_SCOPES,
 } from "./auth.factory";
 
 describe("createDramaWatchAuth", () => {
@@ -88,7 +89,8 @@ describe("createDramaWatchAuth", () => {
     expect(MCP_SCOPES).toEqual([
       "openid",
       "profile",
-      ...MCP_REQUIRED_SCOPES,
+      ...MCP_READ_SCOPES,
+      ...MCP_WRITE_SCOPES,
     ]);
   });
 

@@ -26,11 +26,18 @@ export const MCP_SCOPES = [
   "profile",
   "mcp:library:read",
   "mcp:social:read",
+  "mcp:library:write",
+  "mcp:social:write",
 ] as const;
 
-export const MCP_REQUIRED_SCOPES = [
+export const MCP_READ_SCOPES = [
   "mcp:library:read",
   "mcp:social:read",
+] as const;
+
+export const MCP_WRITE_SCOPES = [
+  "mcp:library:write",
+  "mcp:social:write",
 ] as const;
 
 export function createDramaWatchAuth(
