@@ -472,6 +472,57 @@ export const OPENAPI_DOCUMENT = {
         }
       }
     },
+    "/telegram/connection": {
+      "get": {
+        "operationId": "getTelegramConnection",
+        "tags": [
+          "Telegram"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramConnectionResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "disconnectTelegram",
+        "tags": [
+          "Telegram"
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        }
+      }
+    },
+    "/telegram/link": {
+      "post": {
+        "operationId": "createTelegramLink",
+        "tags": [
+          "Telegram"
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramLinkResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/friends": {
       "get": {
         "operationId": "listFriends",
@@ -1864,6 +1915,12 @@ export const OPENAPI_DOCUMENT = {
           "statisticsOverviewResponse": {
             "$ref": "#/components/schemas/StatisticsOverviewResponse"
           },
+          "telegramConnectionResponse": {
+            "$ref": "#/components/schemas/TelegramConnectionResponse"
+          },
+          "telegramLinkResponse": {
+            "$ref": "#/components/schemas/TelegramLinkResponse"
+          },
           "friendshipResponse": {
             "$ref": "#/components/schemas/FriendshipResponse"
           },
@@ -1983,6 +2040,8 @@ export const OPENAPI_DOCUMENT = {
           "updateRatingRequest",
           "updatePlaybackPreferenceRequest",
           "statisticsOverviewResponse",
+          "telegramConnectionResponse",
+          "telegramLinkResponse",
           "friendshipResponse",
           "friendshipsResponse",
           "createFriendRequest",
@@ -2766,6 +2825,53 @@ export const OPENAPI_DOCUMENT = {
         "required": [
           "month",
           "count"
+        ],
+        "additionalProperties": false
+      },
+      "TelegramConnectionResponse": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "botUsername": {
+            "type": "string"
+          },
+          "miniAppUrl": {
+            "type": "string"
+          },
+          "telegramUsername": {
+            "type": "string"
+          },
+          "telegramDisplayName": {
+            "type": "string"
+          },
+          "connectedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "connected"
+        ],
+        "additionalProperties": false
+      },
+      "TelegramLinkResponse": {
+        "type": "object",
+        "properties": {
+          "deepLink": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "deepLink",
+          "expiresAt"
         ],
         "additionalProperties": false
       },

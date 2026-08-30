@@ -25,6 +25,12 @@ describe("MongooseDatabaseService", () => {
       RATE_LIMIT_TTL_MS: 60_000,
       RATE_LIMIT_MAX: 120,
       LOG_LEVEL: "silent",
+      TELEGRAM_ENABLED: false,
+      TELEGRAM_BOT_TOKEN: "",
+      TELEGRAM_BOT_USERNAME: "",
+      TELEGRAM_WEBHOOK_SECRET: "",
+      TELEGRAM_MINI_APP_URL: "http://localhost:4200/telegram",
+      TELEGRAM_LINK_TTL_MINUTES: 10,
     };
     const connection = mongoose.createConnection();
     const moduleRef = await Test.createTestingModule({

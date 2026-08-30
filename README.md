@@ -148,6 +148,12 @@ Expected response:
 | `RATE_LIMIT_TTL_MS` | No | `60000` | Default request-rate window in milliseconds. |
 | `RATE_LIMIT_MAX` | No | `120` | Default maximum requests per route and tracker in one window. |
 | `LOG_LEVEL` | No | `info` | Pino log level. |
+| `TELEGRAM_ENABLED` | No | `false` | Enables Telegram account linking, webhook processing, and bot messages. |
+| `TELEGRAM_BOT_TOKEN` | When Telegram is enabled | — | Secret BotFather token. Store it only in Secret Manager or a local `.env`. |
+| `TELEGRAM_BOT_USERNAME` | When Telegram is enabled | — | Public bot username, including its `bot` suffix. |
+| `TELEGRAM_WEBHOOK_SECRET` | When Telegram is enabled | — | Random 32–256 character value Telegram sends in the webhook authentication header. |
+| `TELEGRAM_MINI_APP_URL` | When Telegram is enabled | `http://localhost:4200/telegram` | Public Mini App route. Production must use HTTPS. |
+| `TELEGRAM_LINK_TTL_MINUTES` | No | `10` | Lifetime of a one-use account-link deep link. |
 
 Do not commit `.env` files or credentials. Set `TMDB_ACCESS_TOKEN`, `RESEND_API_KEY`, and
 `EMAIL_FROM` in the local `.env` file when testing complete authentication flows. Provide API keys
@@ -169,6 +175,7 @@ a sender accepted by the configured Resend account.
 | `npm run test:watch` | Run unit tests in watch mode. |
 | `npm run test:e2e` | Run Supertest against a NestJS application and the `drama_watch_test` database. |
 | `npm run seed:dev` | Build and upsert guarded mock data into the local development database. |
+| `npm run telegram:webhook:configure` | Register the configured production webhook with Telegram. |
 
 Start the Compose MongoDB service before running `npm run test:e2e` from the host. The suite refuses
 to clear any database whose name is not exactly `drama_watch_test`.
@@ -200,6 +207,32 @@ The session token cookie is named exactly `__session` because Firebase Hosting f
 cookie through rewrites to Cloud Run. Better Auth's automatic secure-cookie name prefix is disabled
 to preserve this exact name; the `Secure` attribute is still enabled explicitly in production.
 Keep these settings together when changing authentication or hosting configuration.
+
+## Telegram integration
+
+Telegram is disabled by default, so local development and CI do not need a bot token. When enabled,
+an authenticated user creates a one-use, short-lived deep link from the Angular Settings page. The
+backend stores only a SHA-256 token hash. Pressing Start in the bot consumes that token and maps the
+Telegram identity to exactly one Drama Watch account. Disconnecting removes both the connection
+and any outstanding link.
+
+Telegram delivers bot updates to `POST /api/telegram/webhook`. The route is anonymous to Better
+Auth but requires the `X-Telegram-Bot-Api-Secret-Token` header, accepts only the bounded update
+shape used by the application, and deduplicates update IDs in MongoDB. Never log bot tokens,
+link tokens, webhook secrets, or raw Telegram updates.
+
+To enable the deployed integration:
+
+1. Create the bot with BotFather and configure `TELEGRAM_BOT_USERNAME`.
+2. Store `TELEGRAM_BOT_TOKEN` and a random `TELEGRAM_WEBHOOK_SECRET` in Google Secret Manager.
+3. Set `TELEGRAM_ENABLED=true` and `TELEGRAM_MINI_APP_URL=https://dahyun.best/telegram` on Cloud Run.
+4. Run `npm run telegram:webhook:configure` once with `BETTER_AUTH_URL`,
+   `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_WEBHOOK_SECRET` present in the shell environment.
+5. In BotFather, set the Main Mini App URL to `https://dahyun.best/telegram`.
+
+The initial Mini App route initializes Telegram's Web App object but does not treat browser state or
+`initDataUnsafe` as authentication. Server-side `initData` validation and Telegram-scoped library
+actions are the next integration boundary.
 
 Ordinary API routes are protected by the integration's global guard. Health checks and other
 intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the

@@ -35,6 +35,7 @@ import { SeoModule } from "./modules/seo/seo.module";
 import { SharedListsModule } from "./modules/shared-lists/shared-lists.module";
 import { StatisticsModule } from "./modules/statistics/statistics.module";
 import { SuggestionsModule } from "./modules/suggestions/suggestions.module";
+import { TelegramModule } from "./modules/telegram/telegram.module";
 import { UsersModule } from "./modules/users/users.module";
 import { WheelsModule } from "./modules/wheels/wheels.module";
 
@@ -101,6 +102,7 @@ import { WheelsModule } from "./modules/wheels/wheels.module";
     SharedListsModule,
     StatisticsModule,
     SuggestionsModule,
+    TelegramModule,
     UsersModule,
     WheelsModule,
   ],
