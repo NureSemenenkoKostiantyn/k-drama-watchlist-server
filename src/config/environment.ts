@@ -1,5 +1,6 @@
-import { plainToInstance, Type } from "class-transformer";
+import { plainToInstance, Transform, Type } from "class-transformer";
 import {
+  IsBoolean,
   IsEnum,
   IsIn,
   IsInt,
@@ -9,6 +10,7 @@ import {
   Max,
   Min,
   MinLength,
+  ValidateIf,
   type ValidationError,
   validateSync,
 } from "class-validator";
@@ -91,6 +93,55 @@ export class EnvironmentVariables {
 
   @IsIn(logLevels)
   LOG_LEVEL: (typeof logLevels)[number] = "info";
+
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === "true",
+  )
+  @IsBoolean()
+  TELEGRAM_ENABLED = false;
+
+  @ValidateIf((environment: EnvironmentVariables) =>
+    environment.TELEGRAM_ENABLED,
+  )
+  @IsString()
+  @Matches(/^\d+:[A-Za-z0-9_-]+$/, {
+    message: "TELEGRAM_BOT_TOKEN must be a Telegram bot token",
+  })
+  TELEGRAM_BOT_TOKEN = "";
+
+  @ValidateIf((environment: EnvironmentVariables) =>
+    environment.TELEGRAM_ENABLED,
+  )
+  @IsString()
+  @Matches(/^[A-Za-z][A-Za-z0-9_]{3,30}bot$/i, {
+    message: "TELEGRAM_BOT_USERNAME must be a valid bot username ending in bot",
+  })
+  TELEGRAM_BOT_USERNAME = "";
+
+  @ValidateIf((environment: EnvironmentVariables) =>
+    environment.TELEGRAM_ENABLED,
+  )
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{32,256}$/, {
+    message: "TELEGRAM_WEBHOOK_SECRET must contain 32 to 256 safe characters",
+  })
+  TELEGRAM_WEBHOOK_SECRET = "";
+
+  @ValidateIf((environment: EnvironmentVariables) =>
+    environment.TELEGRAM_ENABLED,
+  )
+  @IsUrl({
+    protocols: ["http", "https"],
+    require_protocol: true,
+    require_tld: false,
+  })
+  TELEGRAM_MINI_APP_URL = "http://localhost:4200/telegram";
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(5)
+  @Max(60)
+  TELEGRAM_LINK_TTL_MINUTES = 10;
 }
 
 export type Environment = EnvironmentVariables;
@@ -109,6 +160,12 @@ const environmentKeys = [
   "RATE_LIMIT_TTL_MS",
   "RATE_LIMIT_MAX",
   "LOG_LEVEL",
+  "TELEGRAM_ENABLED",
+  "TELEGRAM_BOT_TOKEN",
+  "TELEGRAM_BOT_USERNAME",
+  "TELEGRAM_WEBHOOK_SECRET",
+  "TELEGRAM_MINI_APP_URL",
+  "TELEGRAM_LINK_TTL_MINUTES",
 ] as const;
 
 export function validateEnvironment(

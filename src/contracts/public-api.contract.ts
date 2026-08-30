@@ -21,6 +21,10 @@ import type {
 } from "../common/types/shared-list.types";
 import type { StatisticsOverviewResponse } from "../common/types/statistics.types";
 import type {
+  TelegramConnectionResponse,
+  TelegramLinkResponse,
+} from "../common/types/telegram.types";
+import type {
   SuggestionResponse,
   SuggestionsResponse,
 } from "../common/types/suggestion.types";
@@ -76,6 +80,9 @@ export interface PublicApiContract {
   updatePlaybackPreferenceRequest: UpdatePlaybackPreferenceDto;
 
   statisticsOverviewResponse: StatisticsOverviewResponse;
+
+  telegramConnectionResponse: TelegramConnectionResponse;
+  telegramLinkResponse: TelegramLinkResponse;
 
   friendshipResponse: FriendshipResponse;
   friendshipsResponse: FriendshipsResponse;

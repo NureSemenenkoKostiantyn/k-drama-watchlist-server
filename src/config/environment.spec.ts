@@ -29,6 +29,12 @@ describe("validateEnvironment", () => {
       RATE_LIMIT_TTL_MS: 60_000,
       RATE_LIMIT_MAX: 120,
       LOG_LEVEL: "info",
+      TELEGRAM_ENABLED: false,
+      TELEGRAM_BOT_TOKEN: "",
+      TELEGRAM_BOT_USERNAME: "",
+      TELEGRAM_WEBHOOK_SECRET: "",
+      TELEGRAM_MINI_APP_URL: "http://localhost:4200/telegram",
+      TELEGRAM_LINK_TTL_MINUTES: 10,
     });
   });
 
@@ -104,5 +110,32 @@ describe("validateEnvironment", () => {
         TMDB_ACCESS_TOKEN: "test-tmdb-token",
       }),
     ).toThrow("RESEND_API_KEY must be a string");
+  });
+
+  it("requires Telegram credentials only when the integration is enabled", () => {
+    expect(() =>
+      validateEnvironment({
+        BETTER_AUTH_SECRET: secret,
+        MONGODB_URI: "mongodb://localhost:27017",
+        TMDB_ACCESS_TOKEN: "test-tmdb-token",
+        TELEGRAM_ENABLED: "true",
+        ...email,
+      }),
+    ).toThrow("TELEGRAM_BOT_TOKEN must be a Telegram bot token");
+
+    expect(
+      validateEnvironment({
+        BETTER_AUTH_SECRET: secret,
+        MONGODB_URI: "mongodb://localhost:27017",
+        TMDB_ACCESS_TOKEN: "test-tmdb-token",
+        TELEGRAM_ENABLED: "true",
+        TELEGRAM_BOT_TOKEN: "123456:telegram-test-token",
+        TELEGRAM_BOT_USERNAME: "DramaWatchBot",
+        TELEGRAM_WEBHOOK_SECRET:
+          "telegram_webhook_secret_with_32_chars",
+        TELEGRAM_MINI_APP_URL: "https://example.com/telegram",
+        ...email,
+      }).TELEGRAM_ENABLED,
+    ).toBe(true);
   });
 });

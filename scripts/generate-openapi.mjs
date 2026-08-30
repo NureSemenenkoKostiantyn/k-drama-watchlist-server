@@ -156,6 +156,13 @@ function createPaths() {
     "/statistics": {
       get: operation({ id: "getStatistics", tag: "Statistics", response: ref("StatisticsOverviewResponse") }),
     },
+    "/telegram/connection": {
+      get: operation({ id: "getTelegramConnection", tag: "Telegram", response: ref("TelegramConnectionResponse") }),
+      delete: operation({ id: "disconnectTelegram", tag: "Telegram", status: "204" }),
+    },
+    "/telegram/link": {
+      post: operation({ id: "createTelegramLink", tag: "Telegram", response: ref("TelegramLinkResponse"), status: "201" }),
+    },
     "/friends": {
       get: operation({ id: "listFriends", tag: "Friends", response: ref("FriendshipsResponse") }),
     },
