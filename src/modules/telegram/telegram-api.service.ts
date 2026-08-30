@@ -44,11 +44,18 @@ export class TelegramApiService {
       );
 
       if (!response.ok) {
+        const body = await response.text();
+
         this.logger.warn(
-          { statusCode: response.status },
+        {
+          statusCode: response.status,
+          telegramResponse: body,
+        },
           "Telegram rejected a bot message",
-        );
-      }
+      );
+
+      return;
+}
     } catch (error: unknown) {
       this.logger.warn(
         { errorName: errorName(error) },
