@@ -154,6 +154,7 @@ Expected response:
 | `TELEGRAM_WEBHOOK_SECRET` | When Telegram is enabled | — | Random 32–256 character value Telegram sends in the webhook authentication header. |
 | `TELEGRAM_MINI_APP_URL` | When Telegram is enabled | `http://localhost:4200/telegram` | Public Mini App route. Production must use HTTPS. |
 | `TELEGRAM_LINK_TTL_MINUTES` | No | `10` | Lifetime of a one-use account-link deep link. |
+| `TELEGRAM_INIT_DATA_MAX_AGE_SECONDS` | No | `3600` | Maximum accepted age of signed Telegram Mini App launch data. |
 
 Do not commit `.env` files or credentials. Set `TMDB_ACCESS_TOKEN`, `RESEND_API_KEY`, and
 `EMAIL_FROM` in the local `.env` file when testing complete authentication flows. Provide API keys
@@ -230,9 +231,12 @@ To enable the deployed integration:
    `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_WEBHOOK_SECRET` present in the shell environment.
 5. In BotFather, set the Main Mini App URL to `https://dahyun.best/telegram`.
 
-The initial Mini App route initializes Telegram's Web App object but does not treat browser state or
-`initDataUnsafe` as authentication. Server-side `initData` validation and Telegram-scoped library
-actions are the next integration boundary.
+The Mini App sends raw `Telegram.WebApp.initData` with every `/api/telegram/mini-app/**` request.
+The API validates Telegram's HMAC signature, rejects stale launch data, and resolves only an
+identity already linked to a Drama Watch account. The browser never treats `initDataUnsafe` as
+authentication. Authenticated Mini App users can search TMDB, load their library, add titles to
+`to_watch`, start or finish titles, and increment TV progress. These endpoints reuse the same media
+and owner-scoped library services as the main web API.
 
 Ordinary API routes are protected by the integration's global guard. Health checks and other
 intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the
