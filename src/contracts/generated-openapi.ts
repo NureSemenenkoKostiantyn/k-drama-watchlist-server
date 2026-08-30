@@ -523,6 +523,245 @@ export const OPENAPI_DOCUMENT = {
         }
       }
     },
+    "/telegram/mini-app/session": {
+      "post": {
+        "operationId": "authenticateTelegramMiniApp",
+        "tags": [
+          "Telegram"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TelegramMiniAppSessionResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Telegram-Init-Data",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          }
+        ]
+      }
+    },
+    "/telegram/mini-app/search": {
+      "get": {
+        "operationId": "searchFromTelegramMiniApp",
+        "tags": [
+          "Telegram"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaSearchResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Telegram-Init-Data",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          }
+        ]
+      }
+    },
+    "/telegram/mini-app/library": {
+      "get": {
+        "operationId": "listTelegramMiniAppLibrary",
+        "tags": [
+          "Telegram"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LibraryEntryResponse"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Telegram-Init-Data",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "addFromTelegramMiniApp",
+        "tags": [
+          "Telegram"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddLibraryEntryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryEntryResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Telegram-Init-Data",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          }
+        ]
+      }
+    },
+    "/telegram/mini-app/library/{entryId}/status": {
+      "patch": {
+        "operationId": "updateTelegramMiniAppStatus",
+        "tags": [
+          "Telegram"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLibraryStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryEntryResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Telegram-Init-Data",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/telegram/mini-app/library/{entryId}/progress": {
+      "patch": {
+        "operationId": "updateTelegramMiniAppProgress",
+        "tags": [
+          "Telegram"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProgressDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryEntryResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-Telegram-Init-Data",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 8192
+            }
+          },
+          {
+            "name": "entryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/friends": {
       "get": {
         "operationId": "listFriends",
@@ -1921,6 +2160,9 @@ export const OPENAPI_DOCUMENT = {
           "telegramLinkResponse": {
             "$ref": "#/components/schemas/TelegramLinkResponse"
           },
+          "telegramMiniAppSessionResponse": {
+            "$ref": "#/components/schemas/TelegramMiniAppSessionResponse"
+          },
           "friendshipResponse": {
             "$ref": "#/components/schemas/FriendshipResponse"
           },
@@ -2042,6 +2284,7 @@ export const OPENAPI_DOCUMENT = {
           "statisticsOverviewResponse",
           "telegramConnectionResponse",
           "telegramLinkResponse",
+          "telegramMiniAppSessionResponse",
           "friendshipResponse",
           "friendshipsResponse",
           "createFriendRequest",
@@ -2872,6 +3115,25 @@ export const OPENAPI_DOCUMENT = {
         "required": [
           "deepLink",
           "expiresAt"
+        ],
+        "additionalProperties": false
+      },
+      "TelegramMiniAppSessionResponse": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "$ref": "#/components/schemas/PublicUserProfileResponse"
+          },
+          "telegramDisplayName": {
+            "type": "string"
+          },
+          "telegramUsername": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "account",
+          "telegramDisplayName"
         ],
         "additionalProperties": false
       },

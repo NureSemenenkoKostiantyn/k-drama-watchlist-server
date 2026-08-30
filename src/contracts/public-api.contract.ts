@@ -23,6 +23,7 @@ import type { StatisticsOverviewResponse } from "../common/types/statistics.type
 import type {
   TelegramConnectionResponse,
   TelegramLinkResponse,
+  TelegramMiniAppSessionResponse,
 } from "../common/types/telegram.types";
 import type {
   SuggestionResponse,
@@ -83,6 +84,7 @@ export interface PublicApiContract {
 
   telegramConnectionResponse: TelegramConnectionResponse;
   telegramLinkResponse: TelegramLinkResponse;
+  telegramMiniAppSessionResponse: TelegramMiniAppSessionResponse;
 
   friendshipResponse: FriendshipResponse;
   friendshipsResponse: FriendshipsResponse;

@@ -142,6 +142,12 @@ export class EnvironmentVariables {
   @Min(5)
   @Max(60)
   TELEGRAM_LINK_TTL_MINUTES = 10;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(60)
+  @Max(3_600)
+  TELEGRAM_INIT_DATA_MAX_AGE_SECONDS = 3_600;
 }
 
 export type Environment = EnvironmentVariables;
@@ -166,6 +172,7 @@ const environmentKeys = [
   "TELEGRAM_WEBHOOK_SECRET",
   "TELEGRAM_MINI_APP_URL",
   "TELEGRAM_LINK_TTL_MINUTES",
+  "TELEGRAM_INIT_DATA_MAX_AGE_SECONDS",
 ] as const;
 
 export function validateEnvironment(

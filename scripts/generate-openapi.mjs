@@ -118,6 +118,10 @@ function createPaths() {
           : jsonResponse(response),
     },
   });
+  const telegramMiniAppOperation = (options) => ({
+    ...operation({ ...options, tag: "Telegram", anonymous: true }),
+    parameters: [{ name: "X-Telegram-Init-Data", in: "header", required: true, schema: { type: "string", maxLength: 8192 } }],
+  });
 
   const paths = {
     "/search": {
@@ -162,6 +166,22 @@ function createPaths() {
     },
     "/telegram/link": {
       post: operation({ id: "createTelegramLink", tag: "Telegram", response: ref("TelegramLinkResponse"), status: "201" }),
+    },
+    "/telegram/mini-app/session": {
+      post: telegramMiniAppOperation({ id: "authenticateTelegramMiniApp", response: ref("TelegramMiniAppSessionResponse") }),
+    },
+    "/telegram/mini-app/search": {
+      get: telegramMiniAppOperation({ id: "searchFromTelegramMiniApp", response: ref("MediaSearchResponse") }),
+    },
+    "/telegram/mini-app/library": {
+      get: telegramMiniAppOperation({ id: "listTelegramMiniAppLibrary", response: array("LibraryEntryResponse") }),
+      post: telegramMiniAppOperation({ id: "addFromTelegramMiniApp", request: "AddLibraryEntryDto", response: ref("LibraryEntryResponse"), status: "201" }),
+    },
+    "/telegram/mini-app/library/{entryId}/status": {
+      patch: telegramMiniAppOperation({ id: "updateTelegramMiniAppStatus", request: "UpdateLibraryStatusDto", response: ref("LibraryEntryResponse") }),
+    },
+    "/telegram/mini-app/library/{entryId}/progress": {
+      patch: telegramMiniAppOperation({ id: "updateTelegramMiniAppProgress", request: "UpdateProgressDto", response: ref("LibraryEntryResponse") }),
     },
     "/friends": {
       get: operation({ id: "listFriends", tag: "Friends", response: ref("FriendshipsResponse") }),
@@ -287,7 +307,7 @@ function createPaths() {
 
     for (const value of Object.values(pathItem)) {
       if (parameters.length > 0) {
-        value.parameters = parameters;
+        value.parameters = [...(value.parameters ?? []), ...parameters];
       }
     }
   }

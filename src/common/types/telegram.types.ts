@@ -1,3 +1,5 @@
+import { type PublicUserProfileResponse } from "./user.types";
+
 export interface TelegramConnectionResponse {
   enabled: boolean;
   connected: boolean;
@@ -11,4 +13,10 @@ export interface TelegramConnectionResponse {
 export interface TelegramLinkResponse {
   deepLink: string;
   expiresAt: string;
+}
+
+export interface TelegramMiniAppSessionResponse {
+  account: PublicUserProfileResponse;
+  telegramDisplayName: string;
+  telegramUsername?: string;
 }

@@ -35,6 +35,7 @@ describe("validateEnvironment", () => {
       TELEGRAM_WEBHOOK_SECRET: "",
       TELEGRAM_MINI_APP_URL: "http://localhost:4200/telegram",
       TELEGRAM_LINK_TTL_MINUTES: 10,
+      TELEGRAM_INIT_DATA_MAX_AGE_SECONDS: 3_600,
     });
   });
 
