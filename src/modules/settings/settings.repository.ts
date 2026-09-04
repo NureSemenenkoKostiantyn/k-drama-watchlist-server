@@ -20,6 +20,7 @@ export interface StoredUserSettings {
   activityVisibility: ActivityVisibility;
   telegramNotifications: {
     friendRequests: boolean;
+    titleSuggestions: boolean;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -53,17 +54,42 @@ export class SettingsRepository {
     userId: Types.ObjectId,
     input: UpdateSettingsDto,
   ): Promise<StoredUserSettings> {
+    const fields: Record<string, unknown> = {};
+    const insertDefaults: Record<string, unknown> = { userId };
+    if (input.libraryVisibility !== undefined) {
+      fields.libraryVisibility = input.libraryVisibility;
+    } else {
+      insertDefaults.libraryVisibility = LibraryVisibility.Private;
+    }
+    if (input.activityVisibility !== undefined) {
+      fields.activityVisibility = input.activityVisibility;
+    } else {
+      insertDefaults.activityVisibility = ActivityVisibility.Private;
+    }
+    if (input.telegramNotifications?.friendRequests !== undefined) {
+      fields["telegramNotifications.friendRequests"] =
+        input.telegramNotifications.friendRequests;
+    } else {
+      insertDefaults["telegramNotifications.friendRequests"] = false;
+    }
+    if (input.telegramNotifications?.titleSuggestions !== undefined) {
+      fields["telegramNotifications.titleSuggestions"] =
+        input.telegramNotifications.titleSuggestions;
+    } else {
+      insertDefaults["telegramNotifications.titleSuggestions"] = false;
+    }
+
     const document = await this.settingsModel
       .findOneAndUpdate(
         { userId },
         {
-          $set: input,
-          $setOnInsert: { userId },
+          $set: fields,
+          $setOnInsert: insertDefaults,
         },
         {
           returnDocument: "after",
           runValidators: true,
-          setDefaultsOnInsert: true,
+          setDefaultsOnInsert: false,
           upsert: true,
         },
       )
@@ -89,6 +115,8 @@ function mapSettingsDocument(
     telegramNotifications: {
       friendRequests:
         document.telegramNotifications?.friendRequests ?? false,
+      titleSuggestions:
+        document.telegramNotifications?.titleSuggestions ?? false,
     },
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,

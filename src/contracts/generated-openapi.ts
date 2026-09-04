@@ -3120,10 +3120,14 @@ export const OPENAPI_DOCUMENT = {
         "properties": {
           "friendRequests": {
             "type": "boolean"
+          },
+          "titleSuggestions": {
+            "type": "boolean"
           }
         },
         "required": [
-          "friendRequests"
+          "friendRequests",
+          "titleSuggestions"
         ],
         "additionalProperties": false
       },
@@ -3146,6 +3150,9 @@ export const OPENAPI_DOCUMENT = {
         "type": "object",
         "properties": {
           "friendRequests": {
+            "type": "boolean"
+          },
+          "titleSuggestions": {
             "type": "boolean"
           }
         },

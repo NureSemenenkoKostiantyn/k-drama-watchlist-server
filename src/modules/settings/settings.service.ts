@@ -34,6 +34,8 @@ export class SettingsService {
       telegramNotifications: {
         friendRequests:
           settings?.telegramNotifications.friendRequests ?? false,
+        titleSuggestions:
+          settings?.telegramNotifications.titleSuggestions ?? false,
       },
     };
   }
@@ -56,7 +58,8 @@ export class SettingsService {
     if (
       input.libraryVisibility === undefined &&
       input.activityVisibility === undefined &&
-      input.telegramNotifications?.friendRequests === undefined
+      input.telegramNotifications?.friendRequests === undefined &&
+      input.telegramNotifications?.titleSuggestions === undefined
     ) {
       throw settingsUpdateRequired();
     }

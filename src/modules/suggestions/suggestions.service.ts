@@ -138,6 +138,7 @@ export class SuggestionsService {
       type: NotificationType.SuggestionReceived,
       actorUserId: fromUserId,
       entityId: suggestion._id,
+      deliveryContext: { mediaTitle: media.title },
     });
     return toSuggestionResponse(
       suggestion,

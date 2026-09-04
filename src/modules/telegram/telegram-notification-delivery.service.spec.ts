@@ -30,7 +30,10 @@ describe("TelegramNotificationDeliveryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
-      telegramNotifications: { friendRequests: false },
+      telegramNotifications: {
+        friendRequests: false,
+        titleSuggestions: false,
+      },
     });
     findConnectionByUserId.mockResolvedValue(null);
     findStoredByIds.mockResolvedValue([]);
@@ -58,7 +61,10 @@ describe("TelegramNotificationDeliveryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
-      telegramNotifications: { friendRequests: true },
+      telegramNotifications: {
+        friendRequests: true,
+        titleSuggestions: false,
+      },
     });
     findConnectionByUserId.mockResolvedValue({
       userId: recipientId,
@@ -88,13 +94,55 @@ describe("TelegramNotificationDeliveryService", () => {
     );
   });
 
-  it("ignores notification types that are not enabled in this slice", async () => {
+  it("delivers an opted-in title suggestion with its media title", async () => {
+    getForUser.mockResolvedValue({
+      libraryVisibility: LibraryVisibility.Private,
+      activityVisibility: ActivityVisibility.Private,
+      telegramNotifications: {
+        friendRequests: false,
+        titleSuggestions: true,
+      },
+    });
+    findConnectionByUserId.mockResolvedValue({
+      userId: recipientId,
+      telegramUserId: "123456",
+      privateChatId: "123456",
+      telegramDisplayName: "Recipient",
+      linkedAt: new Date("2026-09-04T12:00:00.000Z"),
+    });
+    findStoredByIds.mockResolvedValue([
+      {
+        _id: actorId,
+        name: "Demo Viewer",
+        username: "demo_viewer",
+        displayUsername: "Demo_Viewer",
+        createdAt: new Date("2026-07-26T10:00:00.000Z"),
+      },
+    ]);
+
+    await createService().deliver({
+      userId: recipientId,
+      type: NotificationType.SuggestionReceived,
+      actorUserId: actorId,
+      entityId: new Types.ObjectId(),
+      deliveryContext: { mediaTitle: "Lovely Runner" },
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      "Demo Viewer (@Demo_Viewer) suggested “Lovely Runner” on Drama Watch.",
+      [[{ text: "Open suggestions", url: "https://dahyun.best/suggestions" }]],
+    );
+  });
+
+  it("does not send title suggestions without their independent consent", async () => {
     await createService().deliver({
       ...friendRequest(),
       type: NotificationType.SuggestionReceived,
+      deliveryContext: { mediaTitle: "Lovely Runner" },
     });
 
-    expect(getForUser).not.toHaveBeenCalled();
+    expect(findConnectionByUserId).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();
   });
 

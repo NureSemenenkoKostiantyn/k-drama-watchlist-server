@@ -24,16 +24,24 @@ export class TelegramNotificationDeliveryService {
   ) {}
 
   async deliver(input: PublishNotificationInput): Promise<void> {
+    if (!this.configService.getOrThrow<boolean>("TELEGRAM_ENABLED")) {
+      return;
+    }
+
     if (
-      !this.configService.getOrThrow<boolean>("TELEGRAM_ENABLED") ||
-      input.type !== NotificationType.FriendRequest
+      input.type !== NotificationType.FriendRequest &&
+      input.type !== NotificationType.SuggestionReceived
     ) {
       return;
     }
 
     try {
       const settings = await this.settingsService.getForUser(input.userId);
-      if (!settings.telegramNotifications.friendRequests) {
+      const optedIn =
+        input.type === NotificationType.FriendRequest
+          ? settings.telegramNotifications.friendRequests
+          : settings.telegramNotifications.titleSuggestions;
+      if (!optedIn) {
         return;
       }
 
@@ -50,14 +58,24 @@ export class TelegramNotificationDeliveryService {
         ? `${actor.name} (@${actor.displayUsername ?? actor.username})`
         : "Someone";
 
+      const isFriendRequest = input.type === NotificationType.FriendRequest;
+      const mediaTitle = input.deliveryContext?.mediaTitle?.trim();
+      const message = isFriendRequest
+        ? `${actorLabel} sent you a friend request on Drama Watch.`
+        : mediaTitle
+          ? `${actorLabel} suggested “${mediaTitle}” on Drama Watch.`
+          : `${actorLabel} sent you a title suggestion on Drama Watch.`;
+
       await this.telegramApi.sendMessage(
         connection.privateChatId,
-        `${actorLabel} sent you a friend request on Drama Watch.`,
+        message,
         [
           [
             {
-              text: "Open friend requests",
-              url: `${this.configService.getOrThrow<string>("FRONTEND_URL")}/friends`,
+              text: isFriendRequest
+                ? "Open friend requests"
+                : "Open suggestions",
+              url: `${this.configService.getOrThrow<string>("FRONTEND_URL")}/${isFriendRequest ? "friends" : "suggestions"}`,
             },
           ],
         ],

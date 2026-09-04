@@ -12,6 +12,7 @@ export interface UserSettingsDocument {
   activityVisibility: ActivityVisibility;
   telegramNotifications: {
     friendRequests: boolean;
+    titleSuggestions: boolean;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -43,10 +44,15 @@ export const UserSettingsSchema = new Schema<UserSettingsDocument>(
             default: false,
             required: true,
           },
+          titleSuggestions: {
+            type: Boolean,
+            default: false,
+            required: true,
+          },
         },
         { _id: false },
       ),
-      default: () => ({ friendRequests: false }),
+      default: () => ({ friendRequests: false, titleSuggestions: false }),
       required: true,
     },
   },

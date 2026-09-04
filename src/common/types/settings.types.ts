@@ -12,6 +12,7 @@ export enum ActivityVisibility {
 
 export interface TelegramNotificationSettings {
   friendRequests: boolean;
+  titleSuggestions: boolean;
 }
 
 export interface UserSettingsResponse {

@@ -25,6 +25,9 @@ export interface PublishNotificationInput {
   type: NotificationType;
   actorUserId?: Types.ObjectId;
   entityId?: Types.ObjectId;
+  deliveryContext?: {
+    mediaTitle?: string;
+  };
 }
 
 @Injectable()

@@ -3118,10 +3118,14 @@
         "properties": {
           "friendRequests": {
             "type": "boolean"
+          },
+          "titleSuggestions": {
+            "type": "boolean"
           }
         },
         "required": [
-          "friendRequests"
+          "friendRequests",
+          "titleSuggestions"
         ],
         "additionalProperties": false
       },
@@ -3144,6 +3148,9 @@
         "type": "object",
         "properties": {
           "friendRequests": {
+            "type": "boolean"
+          },
+          "titleSuggestions": {
             "type": "boolean"
           }
         },
