@@ -4,7 +4,12 @@ import { HttpStatus, Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import { ApiException } from "../../common/errors/api-exception";
+import {
+  type LibraryEntryResponse,
+  WatchStatus,
+} from "../../common/types/library.types";
 import { type Environment } from "../../config/environment";
+import { LibraryService } from "../library/library.service";
 import { TelegramApiService } from "./telegram-api.service";
 import { TelegramLinkService } from "./telegram-link.service";
 import { TelegramRepository } from "./telegram.repository";
@@ -34,6 +39,7 @@ export class TelegramUpdateService {
     private readonly configService: ConfigService<Environment, true>,
     private readonly linkService: TelegramLinkService,
     private readonly telegramRepository: TelegramRepository,
+    private readonly libraryService: LibraryService,
     private readonly telegramApi: TelegramApiService,
   ) {}
 
@@ -127,11 +133,28 @@ export class TelegramUpdateService {
       return;
     }
 
-    const isConnected = Boolean(
+    const connection =
       await this.telegramRepository.findConnectionByTelegramUserId(
         message.userId,
-      ),
-    );
+      );
+    const isConnected = Boolean(connection);
+
+    if (command?.name === "watching") {
+      if (!connection) {
+        await this.sendDisconnectedMessage(message.chatId);
+        return;
+      }
+
+      const entries = await this.libraryService.list(
+        connection.userId.toHexString(),
+        WatchStatus.Watching,
+      );
+      await this.sendMiniAppMessage(
+        message.chatId,
+        formatWatchingMessage(entries),
+      );
+      return;
+    }
 
     if (command?.name === "app") {
       if (isConnected) {
@@ -148,7 +171,7 @@ export class TelegramUpdateService {
     if (command?.name === "help") {
       await this.telegramApi.sendMessage(
         message.chatId,
-        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/settings — Manage your connection\n/help — Show this help",
+        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/watching — See what you are watching\n/settings — Manage your connection\n/help — Show this help",
         isConnected ? this.miniAppButtons() : this.settingsButtons(),
       );
       return;
@@ -285,6 +308,33 @@ function readCommand(text: string | undefined): TelegramCommand | null {
     name: match[1].toLowerCase(),
     ...(argument ? { argument } : {}),
   };
+}
+
+function formatWatchingMessage(entries: LibraryEntryResponse[]): string {
+  if (entries.length === 0) {
+    return "You are not currently watching anything. Open Drama Watch to start a title.";
+  }
+
+  const visibleEntries = entries.slice(0, 12);
+  const lines = visibleEntries.map((entry, index) => {
+    const progress = entry.progress
+      ? ` — S${entry.progress.currentSeason} E${entry.progress.currentEpisode}`
+      : "";
+    return `${index + 1}. ${truncateTitle(entry.media.title)}${progress}`;
+  });
+  const remaining = entries.length - visibleEntries.length;
+
+  return [
+    `Currently watching (${entries.length})`,
+    "",
+    ...lines,
+    ...(remaining > 0 ? ["", `And ${remaining} more in the Mini App.`] : []),
+  ].join("\n");
+}
+
+function truncateTitle(title: string): string {
+  const normalized = title.trim();
+  return normalized.length <= 80 ? normalized : `${normalized.slice(0, 77)}...`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

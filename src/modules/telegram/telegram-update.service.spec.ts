@@ -3,6 +3,11 @@ import { jest } from "@jest/globals";
 import { Types } from "mongoose";
 
 import { type Environment } from "../../config/environment";
+import {
+  type LibraryEntryResponse,
+  WatchStatus,
+} from "../../common/types/library.types";
+import type { LibraryService } from "../library/library.service";
 import type { TelegramApiService } from "./telegram-api.service";
 import type { TelegramLinkService } from "./telegram-link.service";
 import type { TelegramRepository } from "./telegram.repository";
@@ -14,6 +19,7 @@ describe("TelegramUpdateService", () => {
   const releaseUpdate = jest.fn<TelegramRepository["releaseUpdate"]>();
   const findConnectionByTelegramUserId =
     jest.fn<TelegramRepository["findConnectionByTelegramUserId"]>();
+  const listLibrary = jest.fn<LibraryService["list"]>();
   const sendMessage = jest.fn<TelegramApiService["sendMessage"]>();
   const linkService = {
     isEnabled: jest.fn(() => true),
@@ -24,6 +30,9 @@ describe("TelegramUpdateService", () => {
     releaseUpdate,
     findConnectionByTelegramUserId,
   } as unknown as TelegramRepository;
+  const libraryService = {
+    list: listLibrary,
+  } as unknown as LibraryService;
   const telegramApi = { sendMessage } as unknown as TelegramApiService;
   const configService = {
     getOrThrow: jest.fn((key: keyof Environment) => {
@@ -43,6 +52,7 @@ describe("TelegramUpdateService", () => {
     releaseUpdate.mockResolvedValue(undefined);
     consumeLink.mockResolvedValue({ enabled: true, connected: true });
     findConnectionByTelegramUserId.mockResolvedValue(null);
+    listLibrary.mockResolvedValue([]);
     sendMessage.mockResolvedValue(undefined);
   });
 
@@ -179,7 +189,7 @@ describe("TelegramUpdateService", () => {
     expect(sendMessage).toHaveBeenNthCalledWith(
       1,
       "123456",
-      expect.stringContaining("/app — Open the Mini App"),
+      expect.stringContaining("/watching — See what you are watching"),
       [[{ text: "Open Settings", url: "https://dahyun.best/settings" }]],
     );
     expect(sendMessage).toHaveBeenNthCalledWith(
@@ -190,11 +200,88 @@ describe("TelegramUpdateService", () => {
     );
   });
 
+  it("lists the connected account's currently watching titles", async () => {
+    const userId = new Types.ObjectId("507f1f77bcf86cd799439011");
+    findConnectionByTelegramUserId.mockResolvedValue({
+      userId,
+      telegramUserId: "123456",
+      privateChatId: "123456",
+      telegramDisplayName: "Demo Viewer",
+      linkedAt: new Date("2026-08-30T12:00:00.000Z"),
+    });
+    listLibrary.mockResolvedValue([
+      {
+        media: { title: "Goblin" },
+        progress: { currentSeason: 1, currentEpisode: 7 },
+      },
+      { media: { title: "Parasite" } },
+    ] as LibraryEntryResponse[]);
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(49, "/watching"),
+    );
+
+    expect(listLibrary).toHaveBeenCalledWith(
+      userId.toHexString(),
+      WatchStatus.Watching,
+    );
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      "Currently watching (2)\n\n1. Goblin — S1 E7\n2. Parasite",
+      [[{ text: "Open Drama Watch", web_app: { url: "https://dahyun.best/telegram" } }]],
+    );
+  });
+
+  it("does not read a library for an unconnected watching command", async () => {
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(50, "/watching"),
+    );
+
+    expect(listLibrary).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      expect.stringContaining("not connected"),
+      [[{ text: "Open Settings", url: "https://dahyun.best/settings" }]],
+    );
+  });
+
+  it("bounds long watching summaries to a Telegram-safe preview", async () => {
+    findConnectionByTelegramUserId.mockResolvedValue({
+      userId: new Types.ObjectId("507f1f77bcf86cd799439011"),
+      telegramUserId: "123456",
+      privateChatId: "123456",
+      telegramDisplayName: "Demo Viewer",
+      linkedAt: new Date("2026-08-30T12:00:00.000Z"),
+    });
+    listLibrary.mockResolvedValue(
+      Array.from({ length: 13 }, (_, index) => ({
+        media: { title: `Title ${index + 1}` },
+      })) as LibraryEntryResponse[],
+    );
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(51, "/watching"),
+    );
+
+    const text = sendMessage.mock.calls[0]?.[1];
+    expect(text).toContain("12. Title 12");
+    expect(text).toContain("And 1 more in the Mini App.");
+    expect(text).not.toContain("13. Title 13");
+  });
+
   function createService(): TelegramUpdateService {
     return new TelegramUpdateService(
       configService,
       linkService,
       repository,
+      libraryService,
       telegramApi,
     );
   }
