@@ -13,6 +13,7 @@ import {
   toPublicUserProfile,
   UsersService,
 } from "../users/users.service";
+import { TelegramNotificationDeliveryService } from "../telegram/telegram-notification-delivery.service";
 import {
   type PublishNotificationInput,
   type StoredNotification,
@@ -28,6 +29,7 @@ export class NotificationsService {
   constructor(
     private readonly notificationsRepository: NotificationsRepository,
     private readonly usersService: UsersService,
+    private readonly telegramDelivery: TelegramNotificationDeliveryService,
   ) {}
 
   async list(authenticatedUserId: string): Promise<NotificationsResponse> {
@@ -102,7 +104,10 @@ export class NotificationsService {
         },
         "Notification delivery failed",
       );
+      return;
     }
+
+    await this.telegramDelivery.deliver(input);
   }
 
   async markEntityRead(input: {

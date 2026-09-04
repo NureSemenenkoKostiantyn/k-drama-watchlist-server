@@ -10,7 +10,12 @@ export enum ActivityVisibility {
   Public = "public",
 }
 
+export interface TelegramNotificationSettings {
+  friendRequests: boolean;
+}
+
 export interface UserSettingsResponse {
   libraryVisibility: LibraryVisibility;
   activityVisibility: ActivityVisibility;
+  telegramNotifications: TelegramNotificationSettings;
 }

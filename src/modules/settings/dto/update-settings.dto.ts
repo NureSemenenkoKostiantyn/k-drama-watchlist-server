@@ -1,4 +1,10 @@
-import { IsEnum, IsOptional } from "class-validator";
+import { Type } from "class-transformer";
+import {
+  IsBoolean,
+  IsEnum,
+  IsOptional,
+  ValidateNested,
+} from "class-validator";
 
 import {
   ActivityVisibility,
@@ -13,4 +19,15 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsEnum(ActivityVisibility)
   activityVisibility?: ActivityVisibility;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateTelegramNotificationsDto)
+  telegramNotifications?: UpdateTelegramNotificationsDto;
+}
+
+export class UpdateTelegramNotificationsDto {
+  @IsOptional()
+  @IsBoolean()
+  friendRequests?: boolean;
 }

@@ -2154,6 +2154,12 @@ export const OPENAPI_DOCUMENT = {
           "statisticsOverviewResponse": {
             "$ref": "#/components/schemas/StatisticsOverviewResponse"
           },
+          "userSettingsResponse": {
+            "$ref": "#/components/schemas/UserSettingsResponse"
+          },
+          "updateSettingsRequest": {
+            "$ref": "#/components/schemas/UpdateSettingsDto"
+          },
           "telegramConnectionResponse": {
             "$ref": "#/components/schemas/TelegramConnectionResponse"
           },
@@ -2282,6 +2288,8 @@ export const OPENAPI_DOCUMENT = {
           "updateRatingRequest",
           "updatePlaybackPreferenceRequest",
           "statisticsOverviewResponse",
+          "userSettingsResponse",
+          "updateSettingsRequest",
           "telegramConnectionResponse",
           "telegramLinkResponse",
           "telegramMiniAppSessionResponse",
@@ -3069,6 +3077,78 @@ export const OPENAPI_DOCUMENT = {
           "month",
           "count"
         ],
+        "additionalProperties": false
+      },
+      "UserSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "libraryVisibility": {
+            "$ref": "#/components/schemas/LibraryVisibility"
+          },
+          "activityVisibility": {
+            "$ref": "#/components/schemas/ActivityVisibility"
+          },
+          "telegramNotifications": {
+            "$ref": "#/components/schemas/TelegramNotificationSettings"
+          }
+        },
+        "required": [
+          "libraryVisibility",
+          "activityVisibility",
+          "telegramNotifications"
+        ],
+        "additionalProperties": false
+      },
+      "LibraryVisibility": {
+        "type": "string",
+        "enum": [
+          "friends",
+          "private",
+          "public"
+        ]
+      },
+      "ActivityVisibility": {
+        "type": "string",
+        "enum": [
+          "friends",
+          "private",
+          "public"
+        ]
+      },
+      "TelegramNotificationSettings": {
+        "type": "object",
+        "properties": {
+          "friendRequests": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "friendRequests"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateSettingsDto": {
+        "type": "object",
+        "properties": {
+          "libraryVisibility": {
+            "$ref": "#/components/schemas/LibraryVisibility"
+          },
+          "activityVisibility": {
+            "$ref": "#/components/schemas/ActivityVisibility"
+          },
+          "telegramNotifications": {
+            "$ref": "#/components/schemas/UpdateTelegramNotificationsDto"
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateTelegramNotificationsDto": {
+        "type": "object",
+        "properties": {
+          "friendRequests": {
+            "type": "boolean"
+          }
+        },
         "additionalProperties": false
       },
       "TelegramConnectionResponse": {

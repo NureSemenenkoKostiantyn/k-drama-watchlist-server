@@ -18,6 +18,9 @@ export interface StoredUserSettings {
   userId: Types.ObjectId;
   libraryVisibility: LibraryVisibility;
   activityVisibility: ActivityVisibility;
+  telegramNotifications: {
+    friendRequests: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -83,6 +86,10 @@ function mapSettingsDocument(
     libraryVisibility: document.libraryVisibility,
     activityVisibility:
       document.activityVisibility ?? ActivityVisibility.Private,
+    telegramNotifications: {
+      friendRequests:
+        document.telegramNotifications?.friendRequests ?? false,
+    },
     createdAt: document.createdAt,
     updatedAt: document.updatedAt,
   };

@@ -1657,6 +1657,7 @@ describe("application (e2e)", () => {
       .expect({
         libraryVisibility: "private",
         activityVisibility: "private",
+        telegramNotifications: { friendRequests: false },
       });
 
     const friendRequestResponse = await request(server)
@@ -1746,11 +1747,15 @@ describe("application (e2e)", () => {
     await request(server)
       .patch("/api/settings")
       .set("Cookie", otherUserCookie)
-      .send({ libraryVisibility: "friends" })
+      .send({
+        libraryVisibility: "friends",
+        telegramNotifications: { friendRequests: true },
+      })
       .expect(200)
       .expect({
         libraryVisibility: "friends",
         activityVisibility: "private",
+        telegramNotifications: { friendRequests: true },
       });
 
     const friendLibraryResponse = await request(server)

@@ -5,6 +5,7 @@ import { Types } from "mongoose";
 import { NotificationType } from "../../common/types/notification.types";
 import { type StoredPublicUser } from "../users/users.repository";
 import { type UsersService } from "../users/users.service";
+import { type TelegramNotificationDeliveryService } from "../telegram/telegram-notification-delivery.service";
 import {
   type NotificationsRepository,
   type StoredNotification,
@@ -28,6 +29,8 @@ describe("NotificationsService", () => {
     jest.fn<NotificationsRepository["deleteEntity"]>();
   const findStoredByIds =
     jest.fn<UsersService["findStoredByIds"]>();
+  const deliverTelegram =
+    jest.fn<TelegramNotificationDeliveryService["deliver"]>();
   const service = new NotificationsService(
     {
       findRecent,
@@ -38,6 +41,7 @@ describe("NotificationsService", () => {
       deleteEntity,
     } as unknown as NotificationsRepository,
     { findStoredByIds } as unknown as UsersService,
+    { deliver: deliverTelegram } as unknown as TelegramNotificationDeliveryService,
   );
 
   beforeEach(() => {
@@ -101,7 +105,23 @@ describe("NotificationsService", () => {
       }),
     ).resolves.toBeUndefined();
     expect(logger).toHaveBeenCalled();
+    expect(deliverTelegram).not.toHaveBeenCalled();
     logger.mockRestore();
+  });
+
+  it("attempts optional Telegram delivery after persistence", async () => {
+    publish.mockResolvedValue(undefined);
+    deliverTelegram.mockResolvedValue(undefined);
+    const input = {
+      userId,
+      type: NotificationType.FriendRequest,
+      actorUserId: actor._id,
+      entityId: notification.entityId,
+    };
+
+    await service.publish(input);
+
+    expect(deliverTelegram).toHaveBeenCalledWith(input);
   });
 
   it("removes entity notifications when their action is revoked", async () => {

@@ -37,7 +37,8 @@ The current backend foundation provides:
 - Public user profiles and protected weighted name/username discovery without exposing email
   addresses.
 - Friend-only title suggestions with transactional acceptance into the recipient's library.
-- Persistent social notifications with owner-scoped read state and unread counts.
+- Persistent social notifications with owner-scoped read state and unread counts, plus opt-in
+  Telegram delivery for friend requests.
 - Accepted-friend media context with public status and rating projections.
 - Reusable user settings with private-by-default library and activity visibility.
 - Paginated friend libraries with server-enforced private, friends-only, and public access.
@@ -252,6 +253,11 @@ items that the linked owner or editor may spin; selecting one delegates to the e
 so authorization, weighted selection, avoid-recent behavior, and persisted history remain identical
 to the web application. The selected title is posted back to the private chat with a Mini App link.
 
+Linked users can opt into friend-request messages from the Angular Settings page. The preference is
+stored under `telegramNotifications.friendRequests` and defaults to `false`. Delivery starts only
+after the persistent in-app notification succeeds; Telegram lookup and delivery failures are logged
+without failing or rolling back the friend request.
+
 Ordinary API routes are protected by the integration's global guard. Health checks and other
 intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the
 current user from the authenticated session rather than accepting a user ID as authorization proof.
@@ -357,9 +363,11 @@ GET   /api/settings
 PATCH /api/settings
 ```
 
-`libraryVisibility` and `activityVisibility` each accept `private`, `friends`, and `public`. Missing
-settings resolve both fields to `private` without writing a document. Updates use one `userSettings`
-document per Better Auth user, enforced by a unique `userId` index.
+`libraryVisibility` and `activityVisibility` each accept `private`, `friends`, and `public`.
+`telegramNotifications.friendRequests` is a boolean consent flag. Missing settings resolve both
+visibility fields to `private` and Telegram notification preferences to `false` without writing a
+document. Updates use one `userSettings` document per Better Auth user, enforced by a unique
+`userId` index.
 
 Libraries are browsed through:
 

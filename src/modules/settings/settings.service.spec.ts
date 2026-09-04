@@ -34,6 +34,7 @@ describe("SettingsService", () => {
     await expect(service.get(userId.toHexString())).resolves.toEqual({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
+      telegramNotifications: { friendRequests: false },
     });
     expect(update).not.toHaveBeenCalled();
   });
@@ -51,6 +52,7 @@ describe("SettingsService", () => {
     ).resolves.toEqual({
       libraryVisibility: LibraryVisibility.Friends,
       activityVisibility: ActivityVisibility.Friends,
+      telegramNotifications: { friendRequests: false },
     });
     expect(update).toHaveBeenCalledWith(
       userId,
@@ -59,6 +61,24 @@ describe("SettingsService", () => {
         activityVisibility: ActivityVisibility.Friends,
       },
     );
+  });
+
+  it("persists Telegram friend request notification consent", async () => {
+    update.mockResolvedValue({
+      ...buildSettings(LibraryVisibility.Private),
+      telegramNotifications: { friendRequests: true },
+    });
+
+    await expect(
+      service.update(userId.toHexString(), {
+        telegramNotifications: { friendRequests: true },
+      }),
+    ).resolves.toMatchObject({
+      telegramNotifications: { friendRequests: true },
+    });
+    expect(update).toHaveBeenCalledWith(userId, {
+      telegramNotifications: { friendRequests: true },
+    });
   });
 
   it("selects only friends who opted into activity visibility", async () => {
@@ -85,6 +105,7 @@ describe("SettingsService", () => {
       userId,
       libraryVisibility,
       activityVisibility: ActivityVisibility.Friends,
+      telegramNotifications: { friendRequests: false },
       createdAt: new Date("2026-07-27T10:00:00.000Z"),
       updatedAt: new Date("2026-07-27T10:00:00.000Z"),
     };
