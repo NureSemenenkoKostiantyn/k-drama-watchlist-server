@@ -238,8 +238,8 @@ authentication. Authenticated Mini App users can search TMDB, load their library
 `to_watch`, start or finish titles, and increment TV progress. These endpoints reuse the same media
 and owner-scoped library services as the main web API.
 
-The bot handles `/start`, `/app`, `/search <title>`, `/watching`, `/progress`, `/settings`, and
-`/help` in private chats. App-opening
+The bot handles `/start`, `/app`, `/search <title>`, `/watching`, `/progress`, `/random`,
+`/settings`, and `/help` in private chats. App-opening
 commands check the current Telegram identity's connection before presenting the Mini App button;
 unconnected users receive a website Settings link instead. `/watching` uses the linked owner's ID to
 return a bounded progress summary from the existing library service without accepting identity data
@@ -247,8 +247,10 @@ from the message text. `/search` requires the same linked identity, delegates to
 TMDB search service, and returns a bounded plain-text preview with a Mini App link for title details
 and library actions. `/progress` offers inline buttons for up to eight currently watching TV titles;
 each callback resolves the Telegram connection again and advances the selected owner-scoped library
-entry by one episode through the existing progress service. Other data-bearing commands remain
-deferred until their owner-scoped handlers are implemented.
+entry by one episode through the existing progress service. `/random` lists only wheels with enabled
+items that the linked owner or editor may spin; selecting one delegates to the existing wheel service
+so authorization, weighted selection, avoid-recent behavior, and persisted history remain identical
+to the web application. The selected title is posted back to the private chat with a Mini App link.
 
 Ordinary API routes are protected by the integration's global guard. Health checks and other
 intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the

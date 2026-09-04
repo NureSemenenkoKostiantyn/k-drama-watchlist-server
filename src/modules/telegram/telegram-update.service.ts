@@ -14,9 +14,14 @@ import {
   MediaType,
   SearchMediaType,
 } from "../../common/types/media.types";
+import {
+  type WheelResponse,
+  WheelRole,
+} from "../../common/types/wheel.types";
 import { type Environment } from "../../config/environment";
 import { LibraryService } from "../library/library.service";
 import { MediaService } from "../media/media.service";
+import { WheelsService } from "../wheels/wheels.service";
 import { TelegramApiService } from "./telegram-api.service";
 import { TelegramLinkService } from "./telegram-link.service";
 import { TelegramRepository } from "./telegram.repository";
@@ -57,6 +62,7 @@ export class TelegramUpdateService {
     private readonly telegramRepository: TelegramRepository,
     private readonly libraryService: LibraryService,
     private readonly mediaService: MediaService,
+    private readonly wheelsService: WheelsService,
     private readonly telegramApi: TelegramApiService,
   ) {}
 
@@ -251,6 +257,43 @@ export class TelegramUpdateService {
       return;
     }
 
+    if (command?.name === "random") {
+      if (!connection) {
+        await this.sendDisconnectedMessage(message.chatId);
+        return;
+      }
+
+      const wheels = await this.wheelsService.list(
+        connection.userId.toHexString(),
+      );
+      const availableWheels = wheels
+        .filter(canSpinWheel)
+        .slice(0, 8);
+
+      if (availableWheels.length === 0) {
+        await this.sendMiniAppMessage(
+          message.chatId,
+          "You do not have a wheel with enabled titles that you can spin.",
+        );
+        return;
+      }
+
+      await this.telegramApi.sendMessage(
+        message.chatId,
+        "Choose a wheel to pick and record a random title:",
+        [
+          ...availableWheels.map((wheel) => [
+            {
+              text: randomButtonLabel(wheel),
+              callback_data: `random:${wheel.id}`,
+            },
+          ]),
+          ...this.miniAppButtons(),
+        ],
+      );
+      return;
+    }
+
     if (command?.name === "app") {
       if (isConnected) {
         await this.sendMiniAppMessage(
@@ -266,7 +309,7 @@ export class TelegramUpdateService {
     if (command?.name === "help") {
       await this.telegramApi.sendMessage(
         message.chatId,
-        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/search <title> — Search for a title\n/watching — See what you are watching\n/progress — Mark the next episode watched\n/settings — Manage your connection\n/help — Show this help",
+        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/search <title> — Search for a title\n/watching — See what you are watching\n/progress — Mark the next episode watched\n/random — Pick a title from a wheel\n/settings — Manage your connection\n/help — Show this help",
         isConnected ? this.miniAppButtons() : this.settingsButtons(),
       );
       return;
@@ -294,10 +337,10 @@ export class TelegramUpdateService {
       return;
     }
 
-    const progressMatch = callbackQuery.data.match(
-      /^progress:([a-f\d]{24})$/i,
+    const actionMatch = callbackQuery.data.match(
+      /^(progress|random):([a-f\d]{24})$/i,
     );
-    if (!progressMatch?.[1]) {
+    if (!actionMatch?.[1] || !actionMatch[2]) {
       await this.telegramApi.answerCallbackQuery(
         callbackQuery.id,
         "This action is no longer available.",
@@ -318,9 +361,33 @@ export class TelegramUpdateService {
     }
 
     const userId = connection.userId.toHexString();
+    if (actionMatch[1].toLowerCase() === "random") {
+      try {
+        const spin = await this.wheelsService.spin(userId, actionMatch[2]);
+        await this.telegramApi.answerCallbackQuery(
+          callbackQuery.id,
+          `Picked: ${truncateTitle(spin.selectedItem.title, 100)}`,
+        );
+        await this.sendMiniAppMessage(
+          callbackQuery.chatId,
+          `🎲 The wheel picked ${truncateTitle(spin.selectedItem.title)}.`,
+        );
+      } catch (error: unknown) {
+        if (error instanceof ApiException) {
+          await this.telegramApi.answerCallbackQuery(
+            callbackQuery.id,
+            "This wheel cannot be spun.",
+          );
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+
     let entry: LibraryEntryResponse;
     try {
-      entry = await this.libraryService.get(userId, progressMatch[1]);
+      entry = await this.libraryService.get(userId, actionMatch[2]);
     } catch (error: unknown) {
       if (error instanceof ApiException) {
         await this.telegramApi.answerCallbackQuery(
@@ -572,6 +639,17 @@ function progressButtonLabel(entry: LibraryEntryResponse): string {
     ? `S${progress.currentSeason} E${progress.currentEpisode}`
     : "Not started";
   return `+1 · ${truncateTitle(entry.media.title, 40)} · ${position}`;
+}
+
+function canSpinWheel(wheel: WheelResponse): boolean {
+  return (
+    (wheel.role === WheelRole.Owner || wheel.role === WheelRole.Editor) &&
+    wheel.enabledItemCount > 0
+  );
+}
+
+function randomButtonLabel(wheel: WheelResponse): string {
+  return `🎲 ${truncateTitle(wheel.title, 48)} · ${wheel.enabledItemCount} title${wheel.enabledItemCount === 1 ? "" : "s"}`;
 }
 
 function nextEpisodeProgress(entry: LibraryEntryResponse): {

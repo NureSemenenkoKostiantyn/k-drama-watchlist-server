@@ -8,8 +8,14 @@ import {
   WatchStatus,
 } from "../../common/types/library.types";
 import { MediaType, SearchMediaType } from "../../common/types/media.types";
+import {
+  WheelRole,
+  WheelSelectionMode,
+  WheelVisibility,
+} from "../../common/types/wheel.types";
 import type { LibraryService } from "../library/library.service";
 import type { MediaService } from "../media/media.service";
+import type { WheelsService } from "../wheels/wheels.service";
 import type { TelegramApiService } from "./telegram-api.service";
 import type { TelegramLinkService } from "./telegram-link.service";
 import type { TelegramRepository } from "./telegram.repository";
@@ -25,6 +31,8 @@ describe("TelegramUpdateService", () => {
   const getLibraryEntry = jest.fn<LibraryService["get"]>();
   const updateLibraryProgress = jest.fn<LibraryService["updateProgress"]>();
   const searchMedia = jest.fn<MediaService["search"]>();
+  const listWheels = jest.fn<WheelsService["list"]>();
+  const spinWheel = jest.fn<WheelsService["spin"]>();
   const sendMessage = jest.fn<TelegramApiService["sendMessage"]>();
   const answerCallbackQuery =
     jest.fn<TelegramApiService["answerCallbackQuery"]>();
@@ -45,6 +53,10 @@ describe("TelegramUpdateService", () => {
   const mediaService = {
     search: searchMedia,
   } as unknown as MediaService;
+  const wheelsService = {
+    list: listWheels,
+    spin: spinWheel,
+  } as unknown as WheelsService;
   const telegramApi = {
     sendMessage,
     answerCallbackQuery,
@@ -74,6 +86,7 @@ describe("TelegramUpdateService", () => {
       totalResults: 0,
       results: [],
     });
+    listWheels.mockResolvedValue([]);
     sendMessage.mockResolvedValue(undefined);
     answerCallbackQuery.mockResolvedValue(undefined);
   });
@@ -497,6 +510,112 @@ describe("TelegramUpdateService", () => {
     );
   });
 
+  it("offers only wheels the connected account can spin", async () => {
+    findConnectionByTelegramUserId.mockResolvedValue(connectedAccount());
+    listWheels.mockResolvedValue([
+      wheel({
+        id: "507f1f77bcf86cd799439021",
+        title: "Friday night",
+        role: WheelRole.Owner,
+        enabledItemCount: 3,
+      }),
+      wheel({
+        id: "507f1f77bcf86cd799439022",
+        title: "Shared picks",
+        role: WheelRole.Editor,
+        enabledItemCount: 1,
+      }),
+      wheel({
+        id: "507f1f77bcf86cd799439023",
+        title: "View only",
+        role: WheelRole.Viewer,
+        enabledItemCount: 5,
+      }),
+      wheel({
+        id: "507f1f77bcf86cd799439024",
+        title: "Empty",
+        role: WheelRole.Owner,
+        enabledItemCount: 0,
+      }),
+    ]);
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(59, "/random"),
+    );
+
+    expect(listWheels).toHaveBeenCalledWith("507f1f77bcf86cd799439011");
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      "Choose a wheel to pick and record a random title:",
+      [
+        [
+          {
+            text: "🎲 Friday night · 3 titles",
+            callback_data: "random:507f1f77bcf86cd799439021",
+          },
+        ],
+        [
+          {
+            text: "🎲 Shared picks · 1 title",
+            callback_data: "random:507f1f77bcf86cd799439022",
+          },
+        ],
+        [{ text: "Open Drama Watch", web_app: { url: "https://dahyun.best/telegram" } }],
+      ],
+    );
+  });
+
+  it("spins and persists the selected owner-accessible wheel", async () => {
+    findConnectionByTelegramUserId.mockResolvedValue(connectedAccount());
+    spinWheel.mockResolvedValue({
+      spinId: "507f1f77bcf86cd799439031",
+      selectedItem: {
+        wheelItemId: "507f1f77bcf86cd799439032",
+        mediaId: "507f1f77bcf86cd799439033",
+        title: "Crash Landing on You",
+      },
+      createdAt: "2026-09-04T12:00:00.000Z",
+    });
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createCallbackUpdate(60, "random:507f1f77bcf86cd799439021"),
+    );
+
+    expect(spinWheel).toHaveBeenCalledWith(
+      "507f1f77bcf86cd799439011",
+      "507f1f77bcf86cd799439021",
+    );
+    expect(answerCallbackQuery).toHaveBeenCalledWith(
+      "callback-60",
+      "Picked: Crash Landing on You",
+    );
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      "🎲 The wheel picked Crash Landing on You.",
+      [[{ text: "Open Drama Watch", web_app: { url: "https://dahyun.best/telegram" } }]],
+    );
+  });
+
+  it("does not list wheels for an unconnected random command", async () => {
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(61, "/random"),
+    );
+
+    expect(listWheels).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      expect.stringContaining("not connected"),
+      [[{ text: "Open Settings", url: "https://dahyun.best/settings" }]],
+    );
+  });
+
   function createService(): TelegramUpdateService {
     return new TelegramUpdateService(
       configService,
@@ -504,6 +623,7 @@ describe("TelegramUpdateService", () => {
       repository,
       libraryService,
       mediaService,
+      wheelsService,
       telegramApi,
     );
   }
@@ -580,6 +700,22 @@ describe("TelegramUpdateService", () => {
         : {}),
       categoryIds: [],
       sharedLists: [],
+      createdAt: "2026-09-04T12:00:00.000Z",
+      updatedAt: "2026-09-04T12:00:00.000Z",
+    };
+  }
+
+  function wheel(input: {
+    id: string;
+    title: string;
+    role: WheelRole;
+    enabledItemCount: number;
+  }) {
+    return {
+      ...input,
+      visibility: WheelVisibility.Private,
+      selectionMode: WheelSelectionMode.FullyRandom,
+      itemCount: input.enabledItemCount,
       createdAt: "2026-09-04T12:00:00.000Z",
       updatedAt: "2026-09-04T12:00:00.000Z",
     };
