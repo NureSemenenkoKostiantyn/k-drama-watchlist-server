@@ -7,7 +7,9 @@ import {
   type LibraryEntryResponse,
   WatchStatus,
 } from "../../common/types/library.types";
+import { MediaType, SearchMediaType } from "../../common/types/media.types";
 import type { LibraryService } from "../library/library.service";
+import type { MediaService } from "../media/media.service";
 import type { TelegramApiService } from "./telegram-api.service";
 import type { TelegramLinkService } from "./telegram-link.service";
 import type { TelegramRepository } from "./telegram.repository";
@@ -20,6 +22,7 @@ describe("TelegramUpdateService", () => {
   const findConnectionByTelegramUserId =
     jest.fn<TelegramRepository["findConnectionByTelegramUserId"]>();
   const listLibrary = jest.fn<LibraryService["list"]>();
+  const searchMedia = jest.fn<MediaService["search"]>();
   const sendMessage = jest.fn<TelegramApiService["sendMessage"]>();
   const linkService = {
     isEnabled: jest.fn(() => true),
@@ -33,6 +36,9 @@ describe("TelegramUpdateService", () => {
   const libraryService = {
     list: listLibrary,
   } as unknown as LibraryService;
+  const mediaService = {
+    search: searchMedia,
+  } as unknown as MediaService;
   const telegramApi = { sendMessage } as unknown as TelegramApiService;
   const configService = {
     getOrThrow: jest.fn((key: keyof Environment) => {
@@ -53,6 +59,12 @@ describe("TelegramUpdateService", () => {
     consumeLink.mockResolvedValue({ enabled: true, connected: true });
     findConnectionByTelegramUserId.mockResolvedValue(null);
     listLibrary.mockResolvedValue([]);
+    searchMedia.mockResolvedValue({
+      page: 1,
+      totalPages: 0,
+      totalResults: 0,
+      results: [],
+    });
     sendMessage.mockResolvedValue(undefined);
   });
 
@@ -276,12 +288,118 @@ describe("TelegramUpdateService", () => {
     expect(text).not.toContain("13. Title 13");
   });
 
+  it("searches TMDB for a connected account and returns bounded results", async () => {
+    findConnectionByTelegramUserId.mockResolvedValue({
+      userId: new Types.ObjectId("507f1f77bcf86cd799439011"),
+      telegramUserId: "123456",
+      privateChatId: "123456",
+      telegramDisplayName: "Demo Viewer",
+      linkedAt: new Date("2026-08-30T12:00:00.000Z"),
+    });
+    searchMedia.mockResolvedValue({
+      page: 1,
+      totalPages: 2,
+      totalResults: 9,
+      results: Array.from({ length: 9 }, (_, index) => ({
+        id: `tv:${index + 1}`,
+        tmdbId: index + 1,
+        mediaType: index === 1 ? MediaType.Movie : MediaType.Tv,
+        title: index === 0 ? "Goblin" : `Result ${index + 1}`,
+        originalTitle: index === 0 ? "쓸쓸하고 찬란하神 – 도깨비" : `Result ${index + 1}`,
+        firstAirDate: index === 0 ? "2016-12-02" : undefined,
+        releaseDate: index === 1 ? "2019-05-30" : undefined,
+        originCountry: [],
+        genreIds: [],
+      })),
+    });
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(52, "/search Goblin"),
+    );
+
+    expect(searchMedia).toHaveBeenCalledWith({
+      q: "Goblin",
+      type: SearchMediaType.All,
+      page: 1,
+    });
+    const text = sendMessage.mock.calls[0]?.[1];
+    expect(text).toContain("Search results for “Goblin”");
+    expect(text).toContain("1. Goblin (2016) — TV");
+    expect(text).toContain("2. Result 2 (2019) — Movie");
+    expect(text).toContain("1 more result available.");
+    expect(text).not.toContain("9. Result 9");
+  });
+
+  it("shows search usage without calling TMDB when the query is missing", async () => {
+    findConnectionByTelegramUserId.mockResolvedValue({
+      userId: new Types.ObjectId("507f1f77bcf86cd799439011"),
+      telegramUserId: "123456",
+      privateChatId: "123456",
+      telegramDisplayName: "Demo Viewer",
+      linkedAt: new Date("2026-08-30T12:00:00.000Z"),
+    });
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(53, "/search"),
+    );
+
+    expect(searchMedia).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      expect.stringContaining("/search Goblin"),
+      [[{ text: "Open Drama Watch", web_app: { url: "https://dahyun.best/telegram" } }]],
+    );
+  });
+
+  it("does not search TMDB for an unconnected account", async () => {
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(54, "/search Goblin"),
+    );
+
+    expect(searchMedia).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      expect.stringContaining("not connected"),
+      [[{ text: "Open Settings", url: "https://dahyun.best/settings" }]],
+    );
+  });
+
+  it("returns an empty search result without exposing internal data", async () => {
+    findConnectionByTelegramUserId.mockResolvedValue({
+      userId: new Types.ObjectId("507f1f77bcf86cd799439011"),
+      telegramUserId: "123456",
+      privateChatId: "123456",
+      telegramDisplayName: "Demo Viewer",
+      linkedAt: new Date("2026-08-30T12:00:00.000Z"),
+    });
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(55, "/search Unknown title"),
+    );
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      "No titles found for “Unknown title”. Try another title or search in the Mini App.",
+      [[{ text: "Open Drama Watch", web_app: { url: "https://dahyun.best/telegram" } }]],
+    );
+  });
+
   function createService(): TelegramUpdateService {
     return new TelegramUpdateService(
       configService,
       linkService,
       repository,
       libraryService,
+      mediaService,
       telegramApi,
     );
   }

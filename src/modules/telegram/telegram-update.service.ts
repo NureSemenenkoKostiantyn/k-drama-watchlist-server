@@ -8,8 +8,15 @@ import {
   type LibraryEntryResponse,
   WatchStatus,
 } from "../../common/types/library.types";
+import {
+  type MediaSearchResponse,
+  type MediaSummary,
+  MediaType,
+  SearchMediaType,
+} from "../../common/types/media.types";
 import { type Environment } from "../../config/environment";
 import { LibraryService } from "../library/library.service";
+import { MediaService } from "../media/media.service";
 import { TelegramApiService } from "./telegram-api.service";
 import { TelegramLinkService } from "./telegram-link.service";
 import { TelegramRepository } from "./telegram.repository";
@@ -40,6 +47,7 @@ export class TelegramUpdateService {
     private readonly linkService: TelegramLinkService,
     private readonly telegramRepository: TelegramRepository,
     private readonly libraryService: LibraryService,
+    private readonly mediaService: MediaService,
     private readonly telegramApi: TelegramApiService,
   ) {}
 
@@ -156,6 +164,41 @@ export class TelegramUpdateService {
       return;
     }
 
+    if (command?.name === "search") {
+      if (!connection) {
+        await this.sendDisconnectedMessage(message.chatId);
+        return;
+      }
+
+      const query = command.argument;
+      if (!query) {
+        await this.sendMiniAppMessage(
+          message.chatId,
+          "Use /search followed by a title, for example: /search Goblin",
+        );
+        return;
+      }
+
+      if (query.length > 100) {
+        await this.sendMiniAppMessage(
+          message.chatId,
+          "Search text must be 100 characters or fewer.",
+        );
+        return;
+      }
+
+      const results = await this.mediaService.search({
+        q: query,
+        type: SearchMediaType.All,
+        page: 1,
+      });
+      await this.sendMiniAppMessage(
+        message.chatId,
+        formatSearchMessage(query, results),
+      );
+      return;
+    }
+
     if (command?.name === "app") {
       if (isConnected) {
         await this.sendMiniAppMessage(
@@ -171,7 +214,7 @@ export class TelegramUpdateService {
     if (command?.name === "help") {
       await this.telegramApi.sendMessage(
         message.chatId,
-        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/watching — See what you are watching\n/settings — Manage your connection\n/help — Show this help",
+        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/search <title> — Search for a title\n/watching — See what you are watching\n/settings — Manage your connection\n/help — Show this help",
         isConnected ? this.miniAppButtons() : this.settingsButtons(),
       );
       return;
@@ -330,6 +373,39 @@ function formatWatchingMessage(entries: LibraryEntryResponse[]): string {
     ...lines,
     ...(remaining > 0 ? ["", `And ${remaining} more in the Mini App.`] : []),
   ].join("\n");
+}
+
+function formatSearchMessage(
+  query: string,
+  response: MediaSearchResponse,
+): string {
+  if (response.results.length === 0) {
+    return `No titles found for “${query}”. Try another title or search in the Mini App.`;
+  }
+
+  const visibleResults = response.results.slice(0, 8);
+  const lines = visibleResults.map(
+    (result, index) => `${index + 1}. ${formatSearchResult(result)}`,
+  );
+  const remaining = Math.max(response.totalResults - visibleResults.length, 0);
+
+  return [
+    `Search results for “${query}”`,
+    "",
+    ...lines,
+    ...(remaining > 0
+      ? ["", `${remaining} more result${remaining === 1 ? "" : "s"} available.`]
+      : []),
+    "",
+    "Open the Mini App to view details or add a title.",
+  ].join("\n");
+}
+
+function formatSearchResult(result: MediaSummary): string {
+  const date = result.releaseDate ?? result.firstAirDate;
+  const year = date?.match(/^\d{4}/)?.[0];
+  const type = result.mediaType === MediaType.Tv ? "TV" : "Movie";
+  return `${truncateTitle(result.title)}${year ? ` (${year})` : ""} — ${type}`;
 }
 
 function truncateTitle(title: string): string {
