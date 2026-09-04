@@ -22,8 +22,12 @@ describe("TelegramUpdateService", () => {
   const findConnectionByTelegramUserId =
     jest.fn<TelegramRepository["findConnectionByTelegramUserId"]>();
   const listLibrary = jest.fn<LibraryService["list"]>();
+  const getLibraryEntry = jest.fn<LibraryService["get"]>();
+  const updateLibraryProgress = jest.fn<LibraryService["updateProgress"]>();
   const searchMedia = jest.fn<MediaService["search"]>();
   const sendMessage = jest.fn<TelegramApiService["sendMessage"]>();
+  const answerCallbackQuery =
+    jest.fn<TelegramApiService["answerCallbackQuery"]>();
   const linkService = {
     isEnabled: jest.fn(() => true),
     consumeLink,
@@ -35,11 +39,16 @@ describe("TelegramUpdateService", () => {
   } as unknown as TelegramRepository;
   const libraryService = {
     list: listLibrary,
+    get: getLibraryEntry,
+    updateProgress: updateLibraryProgress,
   } as unknown as LibraryService;
   const mediaService = {
     search: searchMedia,
   } as unknown as MediaService;
-  const telegramApi = { sendMessage } as unknown as TelegramApiService;
+  const telegramApi = {
+    sendMessage,
+    answerCallbackQuery,
+  } as unknown as TelegramApiService;
   const configService = {
     getOrThrow: jest.fn((key: keyof Environment) => {
       const values: Partial<Environment> = {
@@ -66,6 +75,7 @@ describe("TelegramUpdateService", () => {
       results: [],
     });
     sendMessage.mockResolvedValue(undefined);
+    answerCallbackQuery.mockResolvedValue(undefined);
   });
 
   it("rejects a webhook with the wrong secret before claiming the update", async () => {
@@ -393,6 +403,100 @@ describe("TelegramUpdateService", () => {
     );
   });
 
+  it("offers owner-scoped episode increment buttons for watching TV titles", async () => {
+    findConnectionByTelegramUserId.mockResolvedValue(connectedAccount());
+    listLibrary.mockResolvedValue([
+      libraryEntry({
+        id: "507f1f77bcf86cd799439012",
+        title: "Goblin",
+        progress: { currentSeason: 1, currentEpisode: 7 },
+      }),
+      libraryEntry({
+        id: "507f1f77bcf86cd799439013",
+        title: "Parasite",
+        mediaType: MediaType.Movie,
+      }),
+    ]);
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createMessageUpdate(56, "/progress"),
+    );
+
+    expect(listLibrary).toHaveBeenCalledWith(
+      "507f1f77bcf86cd799439011",
+      WatchStatus.Watching,
+    );
+    expect(sendMessage).toHaveBeenCalledWith(
+      "123456",
+      "Choose a title to mark its next episode watched:",
+      [
+        [
+          {
+            text: "+1 · Goblin · S1 E7",
+            callback_data: "progress:507f1f77bcf86cd799439012",
+          },
+        ],
+        [{ text: "Open Drama Watch", web_app: { url: "https://dahyun.best/telegram" } }],
+      ],
+    );
+  });
+
+  it("increments the selected owner's title from a Telegram callback", async () => {
+    findConnectionByTelegramUserId.mockResolvedValue(connectedAccount());
+    getLibraryEntry.mockResolvedValue(
+      libraryEntry({
+        id: "507f1f77bcf86cd799439012",
+        title: "Goblin",
+        progress: { currentSeason: 1, currentEpisode: 7 },
+      }),
+    );
+    updateLibraryProgress.mockResolvedValue(
+      libraryEntry({
+        id: "507f1f77bcf86cd799439012",
+        title: "Goblin",
+        progress: { currentSeason: 1, currentEpisode: 8 },
+      }),
+    );
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createCallbackUpdate(57, "progress:507f1f77bcf86cd799439012"),
+    );
+
+    expect(getLibraryEntry).toHaveBeenCalledWith(
+      "507f1f77bcf86cd799439011",
+      "507f1f77bcf86cd799439012",
+    );
+    expect(updateLibraryProgress).toHaveBeenCalledWith(
+      "507f1f77bcf86cd799439011",
+      "507f1f77bcf86cd799439012",
+      { currentSeason: 1, currentEpisode: 8, includeSpecials: false },
+    );
+    expect(answerCallbackQuery).toHaveBeenCalledWith(
+      "callback-57",
+      "Goblin: S1 E8",
+    );
+  });
+
+  it("does not mutate progress for an unconnected callback identity", async () => {
+    const service = createService();
+
+    await service.handle(
+      "telegram_webhook_secret_with_32_chars",
+      createCallbackUpdate(58, "progress:507f1f77bcf86cd799439012"),
+    );
+
+    expect(getLibraryEntry).not.toHaveBeenCalled();
+    expect(updateLibraryProgress).not.toHaveBeenCalled();
+    expect(answerCallbackQuery).toHaveBeenCalledWith(
+      "callback-58",
+      "Connect your Drama Watch account first.",
+    );
+  });
+
   function createService(): TelegramUpdateService {
     return new TelegramUpdateService(
       configService,
@@ -417,6 +521,67 @@ describe("TelegramUpdateService", () => {
           username: "viewer",
         },
       },
+    };
+  }
+
+  function createCallbackUpdate(updateId: number, data: string) {
+    return {
+      update_id: updateId,
+      callback_query: {
+        id: `callback-${updateId}`,
+        data,
+        from: { id: 123456, first_name: "Demo" },
+        message: { chat: { id: 123456, type: "private" } },
+      },
+    };
+  }
+
+  function connectedAccount() {
+    return {
+      userId: new Types.ObjectId("507f1f77bcf86cd799439011"),
+      telegramUserId: "123456",
+      privateChatId: "123456",
+      telegramDisplayName: "Demo Viewer",
+      linkedAt: new Date("2026-08-30T12:00:00.000Z"),
+    };
+  }
+
+  function libraryEntry(input: {
+    id: string;
+    title: string;
+    mediaType?: MediaType;
+    progress?: { currentSeason: number; currentEpisode: number };
+  }): LibraryEntryResponse {
+    const progress = input.progress;
+    return {
+      id: input.id,
+      mediaId: "507f1f77bcf86cd799439099",
+      status: WatchStatus.Watching,
+      media: {
+        id: "tv:1396",
+        tmdbId: 1396,
+        mediaType: input.mediaType ?? MediaType.Tv,
+        title: input.title,
+        originalTitle: input.title,
+        originCountry: ["KR"],
+        genreIds: [],
+        seasons: [{ seasonNumber: 1, name: "Season 1", episodeCount: 16 }],
+      },
+      ...(progress
+        ? {
+            progress: {
+              ...progress,
+              completedEpisodes: progress.currentEpisode,
+              completedSeasonNumbers: [],
+              includeSpecials: false,
+              updatedAt: "2026-09-04T12:00:00.000Z",
+            },
+          }
+        : {}),
+      categoryIds: [],
+      sharedLists: [],
+      createdAt: "2026-09-04T12:00:00.000Z",
+      updatedAt: "2026-09-04T12:00:00.000Z",
     };
   }
 });

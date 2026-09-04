@@ -33,6 +33,15 @@ interface TelegramMessage {
 interface TelegramUpdate {
   updateId: number;
   message?: TelegramMessage;
+  callbackQuery?: TelegramCallbackQuery;
+}
+
+interface TelegramCallbackQuery {
+  id: string;
+  chatId: string;
+  chatType: string;
+  userId: string;
+  data: string;
 }
 
 interface TelegramCommand {
@@ -76,6 +85,11 @@ export class TelegramUpdateService {
   }
 
   private async process(update: TelegramUpdate): Promise<void> {
+    if (update.callbackQuery) {
+      await this.processCallbackQuery(update.callbackQuery);
+      return;
+    }
+
     const message = update.message;
 
     if (!message || message.chatType !== "private") {
@@ -199,6 +213,44 @@ export class TelegramUpdateService {
       return;
     }
 
+    if (command?.name === "progress") {
+      if (!connection) {
+        await this.sendDisconnectedMessage(message.chatId);
+        return;
+      }
+
+      const entries = await this.libraryService.list(
+        connection.userId.toHexString(),
+        WatchStatus.Watching,
+      );
+      const availableEntries = entries
+        .filter((entry) => nextEpisodeProgress(entry) !== null)
+        .slice(0, 8);
+
+      if (availableEntries.length === 0) {
+        await this.sendMiniAppMessage(
+          message.chatId,
+          "There are no currently watching TV titles with another episode available.",
+        );
+        return;
+      }
+
+      await this.telegramApi.sendMessage(
+        message.chatId,
+        "Choose a title to mark its next episode watched:",
+        [
+          ...availableEntries.map((entry) => [
+            {
+              text: progressButtonLabel(entry),
+              callback_data: `progress:${entry.id}`,
+            },
+          ]),
+          ...this.miniAppButtons(),
+        ],
+      );
+      return;
+    }
+
     if (command?.name === "app") {
       if (isConnected) {
         await this.sendMiniAppMessage(
@@ -214,7 +266,7 @@ export class TelegramUpdateService {
     if (command?.name === "help") {
       await this.telegramApi.sendMessage(
         message.chatId,
-        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/search <title> — Search for a title\n/watching — See what you are watching\n/settings — Manage your connection\n/help — Show this help",
+        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/search <title> — Search for a title\n/watching — See what you are watching\n/progress — Mark the next episode watched\n/settings — Manage your connection\n/help — Show this help",
         isConnected ? this.miniAppButtons() : this.settingsButtons(),
       );
       return;
@@ -229,6 +281,78 @@ export class TelegramUpdateService {
     }
 
     await this.sendDisconnectedMessage(message.chatId);
+  }
+
+  private async processCallbackQuery(
+    callbackQuery: TelegramCallbackQuery,
+  ): Promise<void> {
+    if (callbackQuery.chatType !== "private") {
+      await this.telegramApi.answerCallbackQuery(
+        callbackQuery.id,
+        "Open Drama Watch in a private chat.",
+      );
+      return;
+    }
+
+    const progressMatch = callbackQuery.data.match(
+      /^progress:([a-f\d]{24})$/i,
+    );
+    if (!progressMatch?.[1]) {
+      await this.telegramApi.answerCallbackQuery(
+        callbackQuery.id,
+        "This action is no longer available.",
+      );
+      return;
+    }
+
+    const connection =
+      await this.telegramRepository.findConnectionByTelegramUserId(
+        callbackQuery.userId,
+      );
+    if (!connection) {
+      await this.telegramApi.answerCallbackQuery(
+        callbackQuery.id,
+        "Connect your Drama Watch account first.",
+      );
+      return;
+    }
+
+    const userId = connection.userId.toHexString();
+    let entry: LibraryEntryResponse;
+    try {
+      entry = await this.libraryService.get(userId, progressMatch[1]);
+    } catch (error: unknown) {
+      if (error instanceof ApiException) {
+        await this.telegramApi.answerCallbackQuery(
+          callbackQuery.id,
+          "This title is no longer available.",
+        );
+        return;
+      }
+      throw error;
+    }
+
+    const nextProgress = nextEpisodeProgress(entry);
+    if (!nextProgress) {
+      await this.telegramApi.answerCallbackQuery(
+        callbackQuery.id,
+        "No next episode is available for this title.",
+      );
+      return;
+    }
+
+    const updated = await this.libraryService.updateProgress(
+      userId,
+      entry.id,
+      nextProgress,
+    );
+    const progress = updated.progress;
+    await this.telegramApi.answerCallbackQuery(
+      callbackQuery.id,
+      progress
+        ? `${truncateTitle(updated.media.title, 60)}: S${progress.currentSeason} E${progress.currentEpisode}`
+        : `${truncateTitle(updated.media.title, 60)} was updated.`,
+    );
   }
 
   private async sendMiniAppMessage(chatId: string, text: string): Promise<void> {
@@ -296,6 +420,40 @@ function parseUpdate(input: unknown): TelegramUpdate {
   }
 
   const updateId = input["update_id"];
+  const rawCallbackQuery = input["callback_query"];
+
+  if (isRecord(rawCallbackQuery)) {
+    const from = rawCallbackQuery["from"];
+    const message = rawCallbackQuery["message"];
+    const chat = isRecord(message) ? message["chat"] : undefined;
+
+    if (
+      typeof rawCallbackQuery["id"] !== "string" ||
+      rawCallbackQuery["id"].length === 0 ||
+      typeof rawCallbackQuery["data"] !== "string" ||
+      rawCallbackQuery["data"].length === 0 ||
+      rawCallbackQuery["data"].length > 64 ||
+      !isRecord(from) ||
+      !isTelegramId(from["id"]) ||
+      !isRecord(chat) ||
+      !isTelegramId(chat["id"]) ||
+      typeof chat["type"] !== "string"
+    ) {
+      throw invalidTelegramUpdate();
+    }
+
+    return {
+      updateId: updateId as number,
+      callbackQuery: {
+        id: rawCallbackQuery["id"],
+        data: rawCallbackQuery["data"],
+        userId: String(from["id"]),
+        chatId: String(chat["id"]),
+        chatType: chat["type"],
+      },
+    };
+  }
+
   const rawMessage = input["message"];
 
   if (!isRecord(rawMessage)) {
@@ -408,9 +566,67 @@ function formatSearchResult(result: MediaSummary): string {
   return `${truncateTitle(result.title)}${year ? ` (${year})` : ""} — ${type}`;
 }
 
-function truncateTitle(title: string): string {
+function progressButtonLabel(entry: LibraryEntryResponse): string {
+  const progress = entry.progress;
+  const position = progress
+    ? `S${progress.currentSeason} E${progress.currentEpisode}`
+    : "Not started";
+  return `+1 · ${truncateTitle(entry.media.title, 40)} · ${position}`;
+}
+
+function nextEpisodeProgress(entry: LibraryEntryResponse): {
+  currentSeason: number;
+  currentEpisode: number;
+  includeSpecials: boolean;
+} | null {
+  if (entry.media.mediaType !== MediaType.Tv) {
+    return null;
+  }
+
+  const includeSpecials = entry.progress?.includeSpecials ?? false;
+  const seasons = [...(entry.media.seasons ?? [])]
+    .filter((season) => includeSpecials || season.seasonNumber !== 0)
+    .filter((season) => season.episodeCount > 0)
+    .sort((left, right) => left.seasonNumber - right.seasonNumber);
+  const firstSeason = seasons[0];
+  if (!firstSeason) {
+    return null;
+  }
+
+  const currentSeason = entry.progress?.currentSeason ?? firstSeason.seasonNumber;
+  const currentEpisode = entry.progress?.currentEpisode ?? 0;
+  const seasonIndex = Math.max(
+    seasons.findIndex((season) => season.seasonNumber === currentSeason),
+    0,
+  );
+  const season = seasons[seasonIndex];
+  if (!season) {
+    return null;
+  }
+
+  if (currentEpisode < season.episodeCount) {
+    return {
+      currentSeason: season.seasonNumber,
+      currentEpisode: currentEpisode + 1,
+      includeSpecials,
+    };
+  }
+
+  const nextSeason = seasons[seasonIndex + 1];
+  return nextSeason
+    ? {
+        currentSeason: nextSeason.seasonNumber,
+        currentEpisode: 1,
+        includeSpecials,
+      }
+    : null;
+}
+
+function truncateTitle(title: string, maxLength = 80): string {
   const normalized = title.trim();
-  return normalized.length <= 80 ? normalized : `${normalized.slice(0, 77)}...`;
+  return normalized.length <= maxLength
+    ? normalized
+    : `${normalized.slice(0, maxLength - 3)}...`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
