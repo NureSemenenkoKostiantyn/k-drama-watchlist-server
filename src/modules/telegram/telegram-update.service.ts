@@ -23,6 +23,11 @@ interface TelegramUpdate {
   message?: TelegramMessage;
 }
 
+interface TelegramCommand {
+  name: string;
+  argument?: string;
+}
+
 @Injectable()
 export class TelegramUpdateService {
   constructor(
@@ -63,7 +68,8 @@ export class TelegramUpdateService {
       return;
     }
 
-    const startParameter = readStartParameter(message.text);
+    const command = readCommand(message.text);
+    const startParameter = command?.name === "start" ? command.argument : null;
 
     if (startParameter?.startsWith("link_")) {
       const token = startParameter.slice("link_".length);
@@ -116,22 +122,91 @@ export class TelegramUpdateService {
       return;
     }
 
-    await this.telegramApi.sendMessage(
-      message.chatId,
-      "Welcome to Drama Watch. Connect this bot from your website settings, then use the Mini App to search and track titles.",
-      [
-        [
-          {
-            text: "Open Drama Watch",
-            web_app: {
-              url: this.configService.getOrThrow<string>(
-                "TELEGRAM_MINI_APP_URL",
-              ),
-            },
-          },
-        ],
-      ],
+    if (command?.name === "settings") {
+      await this.sendSettingsMessage(message.chatId);
+      return;
+    }
+
+    const isConnected = Boolean(
+      await this.telegramRepository.findConnectionByTelegramUserId(
+        message.userId,
+      ),
     );
+
+    if (command?.name === "app") {
+      if (isConnected) {
+        await this.sendMiniAppMessage(
+          message.chatId,
+          "Open Drama Watch to search titles, update progress and manage your watchlist.",
+        );
+      } else {
+        await this.sendDisconnectedMessage(message.chatId);
+      }
+      return;
+    }
+
+    if (command?.name === "help") {
+      await this.telegramApi.sendMessage(
+        message.chatId,
+        "Drama Watch helps you search for titles, manage your watchlist and track episode progress from Telegram.\n\nAvailable commands:\n/start — Start or reconnect\n/app — Open the Mini App\n/settings — Manage your connection\n/help — Show this help",
+        isConnected ? this.miniAppButtons() : this.settingsButtons(),
+      );
+      return;
+    }
+
+    if (isConnected) {
+      await this.sendMiniAppMessage(
+        message.chatId,
+        "Welcome back to Drama Watch. Open the Mini App to search and track titles.",
+      );
+      return;
+    }
+
+    await this.sendDisconnectedMessage(message.chatId);
+  }
+
+  private async sendMiniAppMessage(chatId: string, text: string): Promise<void> {
+    await this.telegramApi.sendMessage(chatId, text, this.miniAppButtons());
+  }
+
+  private async sendDisconnectedMessage(chatId: string): Promise<void> {
+    await this.telegramApi.sendMessage(
+      chatId,
+      "This Telegram account is not connected to Drama Watch yet. Open Drama Watch Settings to create a secure, one-use connection link.",
+      this.settingsButtons(),
+    );
+  }
+
+  private async sendSettingsMessage(chatId: string): Promise<void> {
+    await this.telegramApi.sendMessage(
+      chatId,
+      "Manage your Telegram connection from Drama Watch Settings.",
+      this.settingsButtons(),
+    );
+  }
+
+  private miniAppButtons() {
+    return [
+      [
+        {
+          text: "Open Drama Watch",
+          web_app: {
+            url: this.configService.getOrThrow<string>("TELEGRAM_MINI_APP_URL"),
+          },
+        },
+      ],
+    ];
+  }
+
+  private settingsButtons() {
+    return [
+      [
+        {
+          text: "Open Settings",
+          url: `${this.configService.getOrThrow<string>("FRONTEND_URL")}/settings`,
+        },
+      ],
+    ];
   }
 
   private verifySecret(value: string | undefined): void {
@@ -197,9 +272,19 @@ function parseUpdate(input: unknown): TelegramUpdate {
   };
 }
 
-function readStartParameter(text: string | undefined): string | null {
-  const match = text?.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+(.+))?$/);
-  return match?.[1]?.trim() ?? null;
+function readCommand(text: string | undefined): TelegramCommand | null {
+  const match = text?.match(/^\/([A-Za-z]+)(?:@[A-Za-z0-9_]+)?(?:\s+(.+))?$/);
+
+  if (!match?.[1]) {
+    return null;
+  }
+
+  const argument = match[2]?.trim();
+
+  return {
+    name: match[1].toLowerCase(),
+    ...(argument ? { argument } : {}),
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

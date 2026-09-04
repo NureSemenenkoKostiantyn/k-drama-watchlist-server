@@ -238,6 +238,11 @@ authentication. Authenticated Mini App users can search TMDB, load their library
 `to_watch`, start or finish titles, and increment TV progress. These endpoints reuse the same media
 and owner-scoped library services as the main web API.
 
+The bot handles `/start`, `/app`, `/settings`, and `/help` in private chats. App-opening commands
+check the current Telegram identity's connection before presenting the Mini App button; unconnected
+users receive a website Settings link instead. Data-bearing commands remain intentionally deferred
+until their owner-scoped handlers are implemented.
+
 Ordinary API routes are protected by the integration's global guard. Health checks and other
 intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the
 current user from the authenticated session rather than accepting a user ID as authorization proof.
