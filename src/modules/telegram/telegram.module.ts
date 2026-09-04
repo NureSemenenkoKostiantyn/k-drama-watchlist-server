@@ -3,6 +3,7 @@ import { Module } from "@nestjs/common";
 import { UsersModule } from "../users/users.module";
 import { LibraryModule } from "../library/library.module";
 import { MediaModule } from "../media/media.module";
+import { WheelsModule } from "../wheels/wheels.module";
 
 import { TelegramApiService } from "./telegram-api.service";
 import { TelegramController } from "./telegram.controller";
@@ -14,7 +15,7 @@ import { TelegramRepository } from "./telegram.repository";
 import { TelegramUpdateService } from "./telegram-update.service";
 
 @Module({
-  imports: [LibraryModule, MediaModule, UsersModule],
+  imports: [LibraryModule, MediaModule, UsersModule, WheelsModule],
   controllers: [TelegramController],
   providers: [
     ...telegramModelProviders,
