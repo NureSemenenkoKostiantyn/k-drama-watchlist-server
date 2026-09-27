@@ -6,6 +6,7 @@ import { NotificationType } from "../../common/types/notification.types";
 import {
   ActivityVisibility,
   LibraryVisibility,
+  TierBoardMode,
 } from "../../common/types/settings.types";
 import { type Environment } from "../../config/environment";
 import type { SettingsService } from "../settings/settings.service";
@@ -30,6 +31,7 @@ describe("TelegramNotificationDeliveryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: false,
@@ -61,6 +63,7 @@ describe("TelegramNotificationDeliveryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: true,
         titleSuggestions: false,
@@ -98,6 +101,7 @@ describe("TelegramNotificationDeliveryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: true,

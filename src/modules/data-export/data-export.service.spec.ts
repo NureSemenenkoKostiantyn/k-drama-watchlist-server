@@ -6,6 +6,7 @@ import { MediaType } from "../../common/types/media.types";
 import {
   ActivityVisibility,
   LibraryVisibility,
+  TierBoardMode,
 } from "../../common/types/settings.types";
 import { type CategoriesService } from "../categories/categories.service";
 import { type LibraryService } from "../library/library.service";
@@ -44,6 +45,7 @@ describe("DataExportService", () => {
       get: getSettings.mockResolvedValue({
         libraryVisibility: LibraryVisibility.Private,
         activityVisibility: ActivityVisibility.Friends,
+        tierBoardMode: TierBoardMode.All,
         telegramNotifications: {
           friendRequests: false,
           titleSuggestions: false,

@@ -7,6 +7,7 @@ import { PublicLibrarySort } from "../../common/types/public-library.types";
 import {
   ActivityVisibility,
   LibraryVisibility,
+  TierBoardMode,
 } from "../../common/types/settings.types";
 import { type FriendsService } from "../friends/friends.service";
 import { type SettingsService } from "../settings/settings.service";
@@ -51,6 +52,7 @@ describe("PublicLibraryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: false,
@@ -86,6 +88,7 @@ describe("PublicLibraryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Friends,
       activityVisibility: ActivityVisibility.Private,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: false,
@@ -113,6 +116,7 @@ describe("PublicLibraryService", () => {
     getForUser.mockResolvedValueOnce({
       libraryVisibility: LibraryVisibility.Friends,
       activityVisibility: ActivityVisibility.Private,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: false,
@@ -135,6 +139,7 @@ describe("PublicLibraryService", () => {
     getForUser.mockResolvedValueOnce({
       libraryVisibility: LibraryVisibility.Public,
       activityVisibility: ActivityVisibility.Private,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: false,

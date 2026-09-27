@@ -16,11 +16,13 @@ interface ApiExceptionOptions {
 }
 
 export class ApiException extends HttpException {
+  readonly statusCode: number;
   readonly code: string;
   readonly details?: unknown;
 
   constructor(options: ApiExceptionOptions) {
     super(options.message, options.statusCode);
+    this.statusCode = options.statusCode;
     this.code = options.code;
     this.details = options.details;
   }
