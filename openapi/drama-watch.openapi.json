@@ -3493,6 +3493,9 @@
           "activityVisibility": {
             "$ref": "#/components/schemas/ActivityVisibility"
           },
+          "tierBoardMode": {
+            "$ref": "#/components/schemas/TierBoardMode"
+          },
           "telegramNotifications": {
             "$ref": "#/components/schemas/TelegramNotificationSettings"
           }
@@ -3500,6 +3503,7 @@
         "required": [
           "libraryVisibility",
           "activityVisibility",
+          "tierBoardMode",
           "telegramNotifications"
         ],
         "additionalProperties": false
@@ -3518,6 +3522,14 @@
           "friends",
           "private",
           "public"
+        ]
+      },
+      "TierBoardMode": {
+        "type": "string",
+        "enum": [
+          "all",
+          "kdrama",
+          "both"
         ]
       },
       "TelegramNotificationSettings": {
@@ -3539,6 +3551,9 @@
       "UpdateSettingsDto": {
         "type": "object",
         "properties": {
+          "tierBoardMode": {
+            "$ref": "#/components/schemas/TierBoardMode"
+          },
           "libraryVisibility": {
             "$ref": "#/components/schemas/LibraryVisibility"
           },
@@ -5110,6 +5125,12 @@
           "visibility": {
             "$ref": "#/components/schemas/TierListVisibility"
           },
+          "source": {
+            "$ref": "#/components/schemas/TierListSource"
+          },
+          "capacity": {
+            "type": "number"
+          },
           "publicSlug": {
             "type": "string"
           },
@@ -5139,11 +5160,13 @@
           }
         },
         "required": [
+          "capacity",
           "createdAt",
           "description",
           "id",
           "itemCount",
           "revision",
+          "source",
           "tiers",
           "title",
           "unranked",
@@ -5158,6 +5181,14 @@
           "private",
           "unlisted",
           "public"
+        ]
+      },
+      "TierListSource": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "library_all",
+          "library_kdrama"
         ]
       },
       "TierRowResponse": {
@@ -5246,6 +5277,12 @@
           "visibility": {
             "$ref": "#/components/schemas/TierListVisibility"
           },
+          "source": {
+            "$ref": "#/components/schemas/TierListSource"
+          },
+          "capacity": {
+            "type": "number"
+          },
           "publicSlug": {
             "type": "string"
           },
@@ -5267,6 +5304,8 @@
           "title",
           "description",
           "visibility",
+          "source",
+          "capacity",
           "revision",
           "itemCount",
           "createdAt",

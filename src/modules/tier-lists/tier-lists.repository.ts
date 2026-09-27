@@ -1,6 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { type Model, Types } from "mongoose";
-import { TierListVisibility } from "../../common/types/tier-list.types";
+import {
+  TierColor,
+  TierListSource,
+  TierListVisibility,
+} from "../../common/types/tier-list.types";
 import { type TierListDocument } from "./schema/tier-list.schema";
 
 export const TIER_LIST_MODEL = Symbol("TIER_LIST_MODEL");
@@ -27,6 +31,61 @@ export class TierListsRepository {
     return (await this.model.create(input)).toObject();
   }
 
+  async ensureAuto(
+    ownerId: Types.ObjectId,
+    source: TierListSource.LibraryAll | TierListSource.LibraryKDrama,
+  ): Promise<TierListDocument> {
+    const title =
+      source === TierListSource.LibraryAll
+        ? "My watched & watching"
+        : "My K-dramas";
+    const colors = [
+      TierColor.Red,
+      TierColor.Orange,
+      TierColor.Yellow,
+      TierColor.Green,
+      TierColor.Blue,
+      TierColor.Purple,
+    ];
+    const insert = {
+      ownerId,
+      source,
+      title,
+      description:
+        "Automatically follows your library. Only you can see this live board.",
+      visibility: TierListVisibility.Private,
+      revision: 0,
+      capacity: 5000,
+      tiers: ["S", "A", "B", "C", "D", "F"].map((label, index) => ({
+        id: `${source}_${label}`,
+        label,
+        color: colors[index]!,
+        mediaIds: [],
+      })),
+      unrankedMediaIds: [],
+    };
+    try {
+      const board = await this.model
+        .findOneAndUpdate(
+          { ownerId, source },
+          { $setOnInsert: insert },
+          { upsert: true, returnDocument: "after", setDefaultsOnInsert: false },
+        )
+        .lean<TierListDocument>()
+        .exec();
+      if (!board) throw new Error("Auto tier-list upsert returned no board");
+      return board;
+    } catch (error) {
+      // A concurrent first read can win the unique owner/source insert.
+      const board = await this.model
+        .findOne({ ownerId, source })
+        .lean<TierListDocument>()
+        .exec();
+      if (!board) throw error;
+      return board;
+    }
+  }
+
   findOwned(
     id: string,
     ownerId: Types.ObjectId,
@@ -41,6 +100,7 @@ export class TierListsRepository {
     return this.model
       .findOne({
         publicSlug,
+        source: { $in: [null, TierListSource.Manual] },
         visibility: {
           $in: [TierListVisibility.Public, TierListVisibility.Unlisted],
         },
@@ -58,6 +118,8 @@ export class TierListsRepository {
             title: board.title,
             description: board.description,
             visibility: board.visibility,
+            source: board.source ?? TierListSource.Manual,
+            capacity: board.capacity ?? 300,
             tiers: board.tiers,
             unrankedMediaIds: board.unrankedMediaIds,
             ...(board.publicSlug ? { publicSlug: board.publicSlug } : {}),
@@ -88,6 +150,7 @@ export class TierListsRepository {
     return this.model
       .find({
         visibility: TierListVisibility.Public,
+        source: { $in: [null, TierListSource.Manual] },
         publicSlug: { $type: "string" },
       })
       .select({ publicSlug: 1, updatedAt: 1, _id: 0 })

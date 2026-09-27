@@ -1,13 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
-import {
-  type HydratedDocument,
-  type Model,
-  Types,
-} from "mongoose";
+import { type HydratedDocument, type Model, Types } from "mongoose";
 
 import {
   ActivityVisibility,
   LibraryVisibility,
+  TierBoardMode,
 } from "../../common/types/settings.types";
 import { type UpdateSettingsDto } from "./dto/update-settings.dto";
 import { type UserSettingsDocument } from "./schema/user-settings.schema";
@@ -18,6 +15,7 @@ export interface StoredUserSettings {
   userId: Types.ObjectId;
   libraryVisibility: LibraryVisibility;
   activityVisibility: ActivityVisibility;
+  tierBoardMode: TierBoardMode;
   telegramNotifications: {
     friendRequests: boolean;
     titleSuggestions: boolean;
@@ -66,6 +64,11 @@ export class SettingsRepository {
     } else {
       insertDefaults.activityVisibility = ActivityVisibility.Private;
     }
+    if (input.tierBoardMode !== undefined) {
+      fields.tierBoardMode = input.tierBoardMode;
+    } else {
+      insertDefaults.tierBoardMode = TierBoardMode.All;
+    }
     if (input.telegramNotifications?.friendRequests !== undefined) {
       fields["telegramNotifications.friendRequests"] =
         input.telegramNotifications.friendRequests;
@@ -112,9 +115,9 @@ function mapSettingsDocument(
     libraryVisibility: document.libraryVisibility,
     activityVisibility:
       document.activityVisibility ?? ActivityVisibility.Private,
+    tierBoardMode: document.tierBoardMode ?? TierBoardMode.All,
     telegramNotifications: {
-      friendRequests:
-        document.telegramNotifications?.friendRequests ?? false,
+      friendRequests: document.telegramNotifications?.friendRequests ?? false,
       titleSuggestions:
         document.telegramNotifications?.titleSuggestions ?? false,
     },

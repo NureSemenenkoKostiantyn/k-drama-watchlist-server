@@ -1,14 +1,10 @@
 import { Type } from "class-transformer";
-import {
-  IsBoolean,
-  IsEnum,
-  IsOptional,
-  ValidateNested,
-} from "class-validator";
+import { IsBoolean, IsEnum, IsOptional, ValidateNested } from "class-validator";
 
 import {
   ActivityVisibility,
   LibraryVisibility,
+  TierBoardMode,
 } from "../../../common/types/settings.types";
 
 export class UpdateTelegramNotificationsDto {
@@ -22,6 +18,10 @@ export class UpdateTelegramNotificationsDto {
 }
 
 export class UpdateSettingsDto {
+  @IsOptional()
+  @IsEnum(TierBoardMode)
+  tierBoardMode?: TierBoardMode;
+
   @IsOptional()
   @IsEnum(LibraryVisibility)
   libraryVisibility?: LibraryVisibility;

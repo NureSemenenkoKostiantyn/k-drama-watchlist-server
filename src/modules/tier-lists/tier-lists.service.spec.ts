@@ -1,8 +1,10 @@
 import { jest } from "@jest/globals";
 import { Types } from "mongoose";
 import { MediaType } from "../../common/types/media.types";
+import { TierBoardMode } from "../../common/types/settings.types";
 import {
   TierColor,
+  TierListSource,
   TierListVisibility,
 } from "../../common/types/tier-list.types";
 import {
@@ -10,6 +12,8 @@ import {
   type StoredMedia,
 } from "../media/media.repository";
 import { type MediaService } from "../media/media.service";
+import { type LibraryRepository } from "../library/library.repository";
+import { type SettingsService } from "../settings/settings.service";
 import { type UsersService } from "../users/users.service";
 import { type TierListDocument } from "./schema/tier-list.schema";
 import { type TierListsRepository } from "./tier-lists.repository";
@@ -26,6 +30,7 @@ describe("TierListsService", () => {
     findPublic: jest.fn<TierListsRepository["findPublic"]>(),
     save: jest.fn<TierListsRepository["save"]>(),
     delete: jest.fn<TierListsRepository["delete"]>(),
+    ensureAuto: jest.fn<TierListsRepository["ensureAuto"]>(),
   };
   const mediaRepository = {
     findByIds: jest.fn<MediaRepository["findByIds"]>(),
@@ -36,11 +41,19 @@ describe("TierListsService", () => {
   const usersService = {
     findStoredByIds: jest.fn<UsersService["findStoredByIds"]>(),
   };
+  const libraryRepository = {
+    findTierEligibleMediaIds: jest.fn<LibraryRepository["findTierEligibleMediaIds"]>(),
+  };
+  const settingsService = {
+    getForUser: jest.fn<SettingsService["getForUser"]>(),
+  };
   const service = new TierListsService(
     repository as unknown as TierListsRepository,
     mediaRepository as unknown as MediaRepository,
     mediaService as unknown as MediaService,
     usersService as unknown as UsersService,
+    libraryRepository as unknown as LibraryRepository,
+    settingsService as unknown as SettingsService,
   );
   let board: TierListDocument;
 
@@ -84,6 +97,16 @@ describe("TierListsService", () => {
       ),
     );
     usersService.findStoredByIds.mockResolvedValue([]);
+    libraryRepository.findTierEligibleMediaIds.mockResolvedValue([]);
+    settingsService.getForUser.mockResolvedValue({
+      libraryVisibility: "private" as never,
+      activityVisibility: "private" as never,
+      tierBoardMode: TierBoardMode.All,
+      telegramNotifications: { friendRequests: false, titleSuggestions: false },
+    });
+    repository.ensureAuto.mockImplementation((_owner, source) =>
+      Promise.resolve({ ...board, source }),
+    );
   });
 
   it("creates private S–F tiers without touching the library or media", async () => {
@@ -315,6 +338,17 @@ describe("TierListsService", () => {
     expect(mediaRepository.findByIds).toHaveBeenCalledWith([first._id]);
   });
 
+  it("never exposes an auto board even if its stored visibility is wrong", async () => {
+    board.source = TierListSource.LibraryAll;
+    board.visibility = TierListVisibility.Public;
+    board.publicSlug = "abcdefghijklmnop";
+    repository.findPublic.mockResolvedValue(board);
+    await expect(service.getPublic(board.publicSlug)).rejects.toMatchObject({
+      code: "TIER_LIST_NOT_FOUND",
+    });
+    expect(libraryRepository.findTierEligibleMediaIds).not.toHaveBeenCalled();
+  });
+
   it("rejects a revoked link and a concurrently changed deletion", async () => {
     repository.findPublic.mockResolvedValue(null);
     await expect(service.getPublic("abcdefghijklmnop")).rejects.toMatchObject({
@@ -324,6 +358,115 @@ describe("TierListsService", () => {
     await expect(
       service.delete(owner.toHexString(), board._id.toHexString(), 3),
     ).rejects.toMatchObject({ code: "TIER_LIST_CONFLICT" });
+  });
+
+  it("creates one All auto board by default and allows both when enabled", async () => {
+    repository.list.mockResolvedValue([board]);
+    await service.list(owner.toHexString());
+    expect(repository.ensureAuto).toHaveBeenCalledTimes(1);
+    expect(repository.ensureAuto).toHaveBeenCalledWith(
+      owner,
+      TierListSource.LibraryAll,
+    );
+    settingsService.getForUser.mockResolvedValue({
+      libraryVisibility: "private" as never,
+      activityVisibility: "private" as never,
+      tierBoardMode: TierBoardMode.Both,
+      telegramNotifications: { friendRequests: false, titleSuggestions: false },
+    });
+    await service.list(owner.toHexString());
+    expect(repository.ensureAuto).toHaveBeenCalledWith(
+      owner,
+      TierListSource.LibraryKDrama,
+    );
+  });
+
+  it("derives auto-board membership from watched and watching entries", async () => {
+    board.source = TierListSource.LibraryKDrama;
+    board.tiers[0]!.mediaIds = [first._id];
+    board.unrankedMediaIds = [];
+    libraryRepository.findTierEligibleMediaIds.mockResolvedValue([first._id, second._id]);
+    const result = await service.get(
+      owner.toHexString(),
+      board._id.toHexString(),
+    );
+    expect(result.source).toBe(TierListSource.LibraryKDrama);
+    expect(result.tiers[0]?.items.map((item) => item.id)).toEqual(["tv:1"]);
+    expect(result.unranked.map((item) => item.id)).toEqual(["tv:2"]);
+    expect(result.itemCount).toBe(2);
+    await expect(
+      service.add(owner.toHexString(), board._id.toHexString(), {
+        revision: 3,
+        items: [{ mediaType: MediaType.Tv, tmdbId: 2 }],
+      }),
+    ).rejects.toMatchObject({ code: "AUTO_TIER_LIST_READ_ONLY" });
+    await expect(
+      service.delete(owner.toHexString(), board._id.toHexString(), 3),
+    ).rejects.toMatchObject({ code: "AUTO_TIER_LIST_READ_ONLY" });
+  });
+
+  it("excludes movies, non-Korean TV, and to-watch titles from the K-drama board", async () => {
+    const movie = {
+      ...media(3),
+      _id: new Types.ObjectId(),
+      mediaType: MediaType.Movie,
+    };
+    const overseas = {
+      ...media(4),
+      _id: new Types.ObjectId(),
+      originCountry: ["US"],
+    };
+    board.source = TierListSource.LibraryKDrama;
+    board.tiers[0]!.mediaIds = [];
+    mediaRepository.findByIds.mockResolvedValue([first, movie, overseas]);
+    libraryRepository.findTierEligibleMediaIds.mockResolvedValue([first._id, movie._id, overseas._id]);
+    const result = await service.get(
+      owner.toHexString(),
+      board._id.toHexString(),
+    );
+    expect(result.unranked.map((item) => item.id)).toEqual(["tv:1"]);
+    expect(result.itemCount).toBe(1);
+  });
+
+  it("saves only ranked placements for an auto board and duplicates a private snapshot", async () => {
+    board.source = TierListSource.LibraryAll;
+    board.capacity = 5000;
+    board.tiers[0]!.mediaIds = [];
+    board.unrankedMediaIds = [];
+    libraryRepository.findTierEligibleMediaIds.mockResolvedValue([first._id, second._id]);
+    const layout = await service.layout(
+      owner.toHexString(),
+      board._id.toHexString(),
+      {
+        revision: 3,
+        tiers: [
+          { id: "s", label: "S", color: TierColor.Red, mediaIds: ["tv:1"] },
+        ],
+        unrankedMediaIds: ["tv:2"],
+      },
+    );
+    expect(repository.save.mock.lastCall?.[0].unrankedMediaIds).toEqual([]);
+    expect(layout.unranked.map((item) => item.id)).toEqual(["tv:2"]);
+    const copy = await service.duplicate(
+      owner.toHexString(),
+      board._id.toHexString(),
+      3,
+    );
+    expect(copy.source).toBe(TierListSource.Manual);
+    expect(copy.itemCount).toBe(2);
+    expect(copy.visibility).toBe(TierListVisibility.Private);
+  });
+
+  it("asks for a reload when auto-board library membership changes before a layout save", async () => {
+    board.source = TierListSource.LibraryAll;
+    board.capacity = 5000;
+    libraryRepository.findTierEligibleMediaIds.mockResolvedValue([first._id]);
+    await expect(service.layout(owner.toHexString(), board._id.toHexString(), {
+      revision: 3,
+      tiers: [{ id: 's', label: 'S', color: TierColor.Red, mediaIds: ['tv:1'] }],
+      unrankedMediaIds: ['tv:2'],
+    })).rejects.toMatchObject({ code: 'TIER_LIST_CONFLICT', statusCode: 409 });
+    expect(repository.save).not.toHaveBeenCalled();
   });
 });
 

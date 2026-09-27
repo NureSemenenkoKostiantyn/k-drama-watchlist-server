@@ -3,6 +3,7 @@ import { Schema, type Types } from "mongoose";
 import {
   ActivityVisibility,
   LibraryVisibility,
+  TierBoardMode,
 } from "../../../common/types/settings.types";
 
 export interface UserSettingsDocument {
@@ -10,6 +11,7 @@ export interface UserSettingsDocument {
   userId: Types.ObjectId;
   libraryVisibility: LibraryVisibility;
   activityVisibility: ActivityVisibility;
+  tierBoardMode: TierBoardMode;
   telegramNotifications: {
     friendRequests: boolean;
     titleSuggestions: boolean;
@@ -34,6 +36,12 @@ export const UserSettingsSchema = new Schema<UserSettingsDocument>(
       type: String,
       enum: Object.values(ActivityVisibility),
       default: ActivityVisibility.Private,
+      required: true,
+    },
+    tierBoardMode: {
+      type: String,
+      enum: Object.values(TierBoardMode),
+      default: TierBoardMode.All,
       required: true,
     },
     telegramNotifications: {

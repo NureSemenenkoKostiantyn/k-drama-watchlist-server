@@ -4,6 +4,7 @@ import { Types } from "mongoose";
 import {
   ActivityVisibility,
   LibraryVisibility,
+  TierBoardMode,
   type UserSettingsResponse,
 } from "../../common/types/settings.types";
 import { ApiException } from "../../common/errors/api-exception";
@@ -12,28 +13,23 @@ import { SettingsRepository } from "./settings.repository";
 
 @Injectable()
 export class SettingsService {
-  constructor(
-    private readonly settingsRepository: SettingsRepository,
-  ) {}
+  constructor(private readonly settingsRepository: SettingsRepository) {}
 
   get(authenticatedUserId: string): Promise<UserSettingsResponse> {
     return this.getForUser(toObjectId(authenticatedUserId));
   }
 
-  async getForUser(
-    userId: Types.ObjectId,
-  ): Promise<UserSettingsResponse> {
-    const settings =
-      await this.settingsRepository.findByUserId(userId);
+  async getForUser(userId: Types.ObjectId): Promise<UserSettingsResponse> {
+    const settings = await this.settingsRepository.findByUserId(userId);
 
     return {
       libraryVisibility:
         settings?.libraryVisibility ?? LibraryVisibility.Private,
       activityVisibility:
         settings?.activityVisibility ?? ActivityVisibility.Private,
+      tierBoardMode: settings?.tierBoardMode ?? TierBoardMode.All,
       telegramNotifications: {
-        friendRequests:
-          settings?.telegramNotifications.friendRequests ?? false,
+        friendRequests: settings?.telegramNotifications.friendRequests ?? false,
         titleSuggestions:
           settings?.telegramNotifications.titleSuggestions ?? false,
       },
@@ -58,6 +54,7 @@ export class SettingsService {
     if (
       input.libraryVisibility === undefined &&
       input.activityVisibility === undefined &&
+      input.tierBoardMode === undefined &&
       input.telegramNotifications?.friendRequests === undefined &&
       input.telegramNotifications?.titleSuggestions === undefined
     ) {
@@ -71,6 +68,7 @@ export class SettingsService {
     return {
       libraryVisibility: settings.libraryVisibility,
       activityVisibility: settings.activityVisibility,
+      tierBoardMode: settings.tierBoardMode,
       telegramNotifications: settings.telegramNotifications,
     };
   }

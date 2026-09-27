@@ -1,6 +1,7 @@
 import { Schema, type Types } from "mongoose";
 import {
   TierColor,
+  TierListSource,
   TierListVisibility,
 } from "../../../common/types/tier-list.types";
 
@@ -17,6 +18,8 @@ export interface TierListDocument {
   title: string;
   description: string;
   visibility: TierListVisibility;
+  source?: TierListSource;
+  capacity?: number;
   publicSlug?: string;
   revision: number;
   tiers: StoredTierRow[];
@@ -45,6 +48,19 @@ export const TierListSchema = new Schema<TierListDocument>(
       enum: Object.values(TierListVisibility),
       default: TierListVisibility.Private,
     },
+    source: {
+      type: String,
+      enum: Object.values(TierListSource),
+      default: TierListSource.Manual,
+      required: true,
+    },
+    capacity: {
+      type: Number,
+      min: 300,
+      max: 5000,
+      default: 300,
+      required: true,
+    },
     publicSlug: { type: String, maxlength: 16 },
     revision: { type: Number, default: 0, min: 0, required: true },
     tiers: { type: [TierRowSchema], required: true },
@@ -54,5 +70,16 @@ export const TierListSchema = new Schema<TierListDocument>(
 );
 
 TierListSchema.index({ ownerId: 1, updatedAt: -1 });
+TierListSchema.index(
+  { ownerId: 1, source: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      source: {
+        $in: [TierListSource.LibraryAll, TierListSource.LibraryKDrama],
+      },
+    },
+  },
+);
 TierListSchema.index({ publicSlug: 1 }, { sparse: true, unique: true });
 TierListSchema.index({ visibility: 1, updatedAt: -1 });

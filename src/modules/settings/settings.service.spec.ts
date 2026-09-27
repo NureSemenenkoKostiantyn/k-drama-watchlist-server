@@ -4,6 +4,7 @@ import { Types } from "mongoose";
 import {
   ActivityVisibility,
   LibraryVisibility,
+  TierBoardMode,
 } from "../../common/types/settings.types";
 import {
   type SettingsRepository,
@@ -13,10 +14,8 @@ import { SettingsService } from "./settings.service";
 
 describe("SettingsService", () => {
   const userId = new Types.ObjectId();
-  const findByUserId =
-    jest.fn<SettingsRepository["findByUserId"]>();
-  const findByUserIds =
-    jest.fn<SettingsRepository["findByUserIds"]>();
+  const findByUserId = jest.fn<SettingsRepository["findByUserId"]>();
+  const findByUserIds = jest.fn<SettingsRepository["findByUserIds"]>();
   const update = jest.fn<SettingsRepository["update"]>();
   const service = new SettingsService({
     findByUserId,
@@ -34,6 +33,7 @@ describe("SettingsService", () => {
     await expect(service.get(userId.toHexString())).resolves.toEqual({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: false,
@@ -43,9 +43,7 @@ describe("SettingsService", () => {
   });
 
   it("persists and returns the selected visibility", async () => {
-    update.mockResolvedValue(
-      buildSettings(LibraryVisibility.Friends),
-    );
+    update.mockResolvedValue(buildSettings(LibraryVisibility.Friends));
 
     await expect(
       service.update(userId.toHexString(), {
@@ -55,18 +53,16 @@ describe("SettingsService", () => {
     ).resolves.toEqual({
       libraryVisibility: LibraryVisibility.Friends,
       activityVisibility: ActivityVisibility.Friends,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: false,
       },
     });
-    expect(update).toHaveBeenCalledWith(
-      userId,
-      {
-        libraryVisibility: LibraryVisibility.Friends,
-        activityVisibility: ActivityVisibility.Friends,
-      },
-    );
+    expect(update).toHaveBeenCalledWith(userId, {
+      libraryVisibility: LibraryVisibility.Friends,
+      activityVisibility: ActivityVisibility.Friends,
+    });
   });
 
   it("persists Telegram friend request notification consent", async () => {
@@ -87,6 +83,21 @@ describe("SettingsService", () => {
     });
     expect(update).toHaveBeenCalledWith(userId, {
       telegramNotifications: { friendRequests: true },
+    });
+  });
+
+  it("persists the selected automatic tier-board mode", async () => {
+    update.mockResolvedValue({
+      ...buildSettings(LibraryVisibility.Private),
+      tierBoardMode: TierBoardMode.Both,
+    });
+    await expect(
+      service.update(userId.toHexString(), {
+        tierBoardMode: TierBoardMode.Both,
+      }),
+    ).resolves.toMatchObject({ tierBoardMode: TierBoardMode.Both });
+    expect(update).toHaveBeenCalledWith(userId, {
+      tierBoardMode: TierBoardMode.Both,
     });
   });
 
@@ -135,6 +146,7 @@ describe("SettingsService", () => {
       userId,
       libraryVisibility,
       activityVisibility: ActivityVisibility.Friends,
+      tierBoardMode: TierBoardMode.All,
       telegramNotifications: {
         friendRequests: false,
         titleSuggestions: false,

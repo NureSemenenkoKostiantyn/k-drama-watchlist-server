@@ -69,6 +69,16 @@ export class LibraryRepository {
     return documents.map(mapUserMediaDocument);
   }
 
+  async findTierEligibleMediaIds(userId: Types.ObjectId): Promise<Types.ObjectId[]> {
+    const entries = await this.userMediaModel
+      .find({ userId, status: { $in: [WatchStatus.Watching, WatchStatus.Watched] } })
+      .sort({ updatedAt: -1 })
+      .select({ mediaId: 1 })
+      .lean<Array<{ mediaId: Types.ObjectId }>>()
+      .exec();
+    return entries.map((entry) => entry.mediaId);
+  }
+
   async findById(
     userId: Types.ObjectId,
     entryId: Types.ObjectId,

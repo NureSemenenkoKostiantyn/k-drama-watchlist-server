@@ -82,7 +82,7 @@ export class TierPlacementDto {
   color!: TierColor;
 
   @IsArray()
-  @ArrayMaxSize(300)
+  @ArrayMaxSize(5000)
   @ArrayUnique()
   @Matches(/^(tv|movie):[1-9]\d{0,14}$/, { each: true })
   mediaIds!: string[];
@@ -97,7 +97,7 @@ export class UpdateTierLayoutDto extends RevisionDto {
   tiers!: TierPlacementDto[];
 
   @IsArray()
-  @ArrayMaxSize(300)
+  @ArrayMaxSize(5000)
   @ArrayUnique()
   @Matches(/^(tv|movie):[1-9]\d{0,14}$/, { each: true })
   unrankedMediaIds!: string[];

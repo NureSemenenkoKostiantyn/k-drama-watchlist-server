@@ -3495,6 +3495,9 @@ export const OPENAPI_DOCUMENT = {
           "activityVisibility": {
             "$ref": "#/components/schemas/ActivityVisibility"
           },
+          "tierBoardMode": {
+            "$ref": "#/components/schemas/TierBoardMode"
+          },
           "telegramNotifications": {
             "$ref": "#/components/schemas/TelegramNotificationSettings"
           }
@@ -3502,6 +3505,7 @@ export const OPENAPI_DOCUMENT = {
         "required": [
           "libraryVisibility",
           "activityVisibility",
+          "tierBoardMode",
           "telegramNotifications"
         ],
         "additionalProperties": false
@@ -3520,6 +3524,14 @@ export const OPENAPI_DOCUMENT = {
           "friends",
           "private",
           "public"
+        ]
+      },
+      "TierBoardMode": {
+        "type": "string",
+        "enum": [
+          "all",
+          "kdrama",
+          "both"
         ]
       },
       "TelegramNotificationSettings": {
@@ -3541,6 +3553,9 @@ export const OPENAPI_DOCUMENT = {
       "UpdateSettingsDto": {
         "type": "object",
         "properties": {
+          "tierBoardMode": {
+            "$ref": "#/components/schemas/TierBoardMode"
+          },
           "libraryVisibility": {
             "$ref": "#/components/schemas/LibraryVisibility"
           },
@@ -5112,6 +5127,12 @@ export const OPENAPI_DOCUMENT = {
           "visibility": {
             "$ref": "#/components/schemas/TierListVisibility"
           },
+          "source": {
+            "$ref": "#/components/schemas/TierListSource"
+          },
+          "capacity": {
+            "type": "number"
+          },
           "publicSlug": {
             "type": "string"
           },
@@ -5141,11 +5162,13 @@ export const OPENAPI_DOCUMENT = {
           }
         },
         "required": [
+          "capacity",
           "createdAt",
           "description",
           "id",
           "itemCount",
           "revision",
+          "source",
           "tiers",
           "title",
           "unranked",
@@ -5160,6 +5183,14 @@ export const OPENAPI_DOCUMENT = {
           "private",
           "unlisted",
           "public"
+        ]
+      },
+      "TierListSource": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "library_all",
+          "library_kdrama"
         ]
       },
       "TierRowResponse": {
@@ -5248,6 +5279,12 @@ export const OPENAPI_DOCUMENT = {
           "visibility": {
             "$ref": "#/components/schemas/TierListVisibility"
           },
+          "source": {
+            "$ref": "#/components/schemas/TierListSource"
+          },
+          "capacity": {
+            "type": "number"
+          },
           "publicSlug": {
             "type": "string"
           },
@@ -5269,6 +5306,8 @@ export const OPENAPI_DOCUMENT = {
           "title",
           "description",
           "visibility",
+          "source",
+          "capacity",
           "revision",
           "itemCount",
           "createdAt",

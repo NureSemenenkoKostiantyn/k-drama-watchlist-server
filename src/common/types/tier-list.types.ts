@@ -7,6 +7,12 @@ export enum TierListVisibility {
   Public = "public",
 }
 
+export enum TierListSource {
+  Manual = "manual",
+  LibraryAll = "library_all",
+  LibraryKDrama = "library_kdrama",
+}
+
 export enum TierColor {
   Red = "red",
   Orange = "orange",
@@ -39,6 +45,8 @@ export interface TierListSummaryResponse {
   title: string;
   description: string;
   visibility: TierListVisibility;
+  source: TierListSource;
+  capacity: number;
   publicSlug?: string;
   revision: number;
   itemCount: number;

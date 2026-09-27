@@ -3,6 +3,8 @@ import { getConnectionToken } from "@nestjs/mongoose";
 import { type Connection } from "mongoose";
 
 import { MediaModule } from "../media/media.module";
+import { LibraryModule } from "../library/library.module";
+import { SettingsModule } from "../settings/settings.module";
 import { OpenGraphModule } from "../open-graph/open-graph.module";
 import { UsersModule } from "../users/users.module";
 import {
@@ -17,7 +19,13 @@ import { TIER_LIST_MODEL, TierListsRepository } from "./tier-lists.repository";
 import { TierListsService } from "./tier-lists.service";
 
 @Module({
-  imports: [MediaModule, UsersModule, OpenGraphModule],
+  imports: [
+    MediaModule,
+    LibraryModule,
+    SettingsModule,
+    UsersModule,
+    OpenGraphModule,
+  ],
   controllers: [TierListsController, PublicTierListsController],
   providers: [
     TierListsRepository,
