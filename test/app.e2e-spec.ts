@@ -18,6 +18,7 @@ import { AppModule } from "../src/app.module";
 import { configureApplication } from "../src/app.setup";
 import { tmdbSearchRateLimit } from "../src/common/throttling/throttling.constants";
 import { MediaType } from "../src/common/types/media.types";
+import { type TierListResponse, type PublicTierListResponse } from "../src/common/types/tier-list.types";
 import { MongooseDatabaseService } from "../src/database/mongoose-database.service";
 import {
   type AuthenticationEmailInput,
@@ -260,6 +261,7 @@ describe("application (e2e)", () => {
       .expect(200)
       .expect({ status: "ok" });
   });
+
 
   it("publishes MCP OAuth discovery from the standard root path", async () => {
     const response = await request(server)
@@ -2980,6 +2982,80 @@ describe("application (e2e)", () => {
       .get("/api/media/person/1")
       .set("Cookie", authenticatedCookie)
       .expect(400);
+  });
+
+  it("persists owner-only tier lists, atomic arrangements and revocable ranked-only shares", async () => {
+    await request(server).get("/api/tier-lists").expect(401);
+    const created = await request(server).post("/api/tier-lists").set("Cookie", authenticatedCookie)
+      .send({ title: "K-drama tiers", description: "My ranking" }).expect(201);
+    let board = created.body as TierListResponse;
+    const path = `/api/tier-lists/${board.id}`;
+    await request(server).get("/api/tier-lists").set("Cookie", authenticatedCookie).expect(200).expect((response) => {
+      expect(response.body).toEqual([expect.objectContaining({ id: board.id, itemCount: 0 })]);
+    });
+    await request(server).get("/api/tier-lists").set("Cookie", otherUserCookie).expect(200).expect([]);
+    const { database } = await databaseService.getNativeConnection();
+    const initialLibraryCount = await database.collection("userMedia").countDocuments();
+    expect(board.visibility).toBe("private"); expect(board.tiers.map((row) => row.label)).toEqual(["S", "A", "B", "C", "D", "F"]);
+    await request(server).get(path).set("Cookie", otherUserCookie).expect(404);
+    await request(server).patch(path).set("Cookie", otherUserCookie).send({ revision: 0, title: "Stolen", description: "", visibility: "public" }).expect(404);
+    await request(server).get("/api/tier-lists/not-an-id").set("Cookie", authenticatedCookie).expect(400);
+    await request(server).post(`${path}/items`).set("Cookie", otherUserCookie).send({ revision: 0, items: [{ mediaType: "tv", tmdbId: 1 }] }).expect(404);
+    board = (await request(server).post(`${path}/items`).set("Cookie", authenticatedCookie)
+      .send({ revision: board.revision, items: [{ mediaType: "tv", tmdbId: 1 }, { mediaType: "tv", tmdbId: 1 }, { mediaType: "tv", tmdbId: 2 }] }).expect(200)).body as TierListResponse;
+    expect(board.unranked.map((item) => item.id)).toEqual(["tv:1", "tv:2"]);
+    expect(await database.collection("media").countDocuments({ tmdbId: 1, mediaType: "tv" })).toBe(1);
+    const stored = await database.collection("tierLists").findOne({ _id: new ObjectId(board.id) });
+    expect(stored?.["unrankedMediaIds"]).toHaveLength(2); expect(stored).not.toHaveProperty("items");
+    const rows = board.tiers.map((row, index) => ({ id: row.id, label: row.label, color: row.color, mediaIds: index === 0 ? ["tv:1"] : [] }));
+    await request(server).patch(`${path}/layout`).set("Cookie", authenticatedCookie)
+      .send({ revision: board.revision, tiers: rows, unrankedMediaIds: ["tv:1"] }).expect(400);
+    await request(server).patch(`${path}/layout`).set("Cookie", authenticatedCookie)
+      .send({ revision: board.revision, tiers: rows, unrankedMediaIds: [] }).expect(400);
+    // Two writes from the same displayed version must never both succeed.
+    const writes = await Promise.all([1, 2].map(() => request(server).patch(`${path}/layout`).set("Cookie", authenticatedCookie)
+      .send({ revision: board.revision, tiers: rows, unrankedMediaIds: ["tv:2"] })));
+    expect(writes.map((response) => response.status).sort()).toEqual([200, 409]);
+    board = writes.find((response) => response.status === 200)!.body as TierListResponse;
+    expect(board.revision).toBe(2); expect(board.tiers[0]?.items.map((item) => item.id)).toEqual(["tv:1"]);
+    const crossTier = rows.map((row, index) => ({ ...row, mediaIds: index === 1 ? ["tv:1"] : [] }));
+    board = (await request(server).patch(`${path}/layout`).set("Cookie", authenticatedCookie)
+      .send({ revision: board.revision, tiers: crossTier, unrankedMediaIds: ["tv:2"] }).expect(200)).body as TierListResponse;
+    expect(board.tiers[0]?.items).toEqual([]); expect(board.tiers[1]?.items[0]?.id).toBe("tv:1");
+    board = (await request(server).patch(path).set("Cookie", authenticatedCookie)
+      .send({ revision: board.revision, title: board.title, description: board.description, visibility: "unlisted" }).expect(200)).body as TierListResponse;
+    const slug = board.publicSlug!;
+    const shared = await request(server).get(`/api/public/tier-lists/${slug}`).expect(200);
+    const publicBoard = shared.body as PublicTierListResponse;
+    expect(shared.headers["cache-control"]).toBe("private, no-store");
+    expect(publicBoard.itemCount).toBe(1); expect(publicBoard).not.toHaveProperty("unranked"); expect(publicBoard).not.toHaveProperty("id");
+    expect(publicBoard.tiers[1]).not.toHaveProperty("id"); expect(JSON.stringify(publicBoard)).not.toContain('"tv:2"');
+    expect(JSON.stringify(publicBoard)).not.toContain("@example.com");
+    await request(server).get(`/api/public/tier-lists/share/${slug}`).expect(200).expect((response) => {
+      expect(response.text).toContain("noindex, nofollow"); expect(response.text).toContain(`/tier-lists/public/${slug}`);
+    });
+    await request(server).get("/api/public/seo/sitemap.xml").expect(200).expect((response) => { expect(response.text).not.toContain(`/tier-lists/public/${slug}`); });
+    board = (await request(server).patch(path).set("Cookie", authenticatedCookie)
+      .send({ revision: board.revision, title: board.title, description: "", visibility: "public" }).expect(200)).body as TierListResponse;
+    expect(board.publicSlug).toBe(slug);
+    await request(server).get("/api/public/seo/sitemap.xml").expect(200).expect((response) => { expect(response.text).toContain(`/tier-lists/public/${slug}`); });
+    await request(server).get(`/api/public/tier-lists/${slug}`).expect(200).expect("Cache-Control", "public, max-age=0, must-revalidate");
+    const copy = (await request(server).post(`${path}/duplicate`).set("Cookie", authenticatedCookie).send({ revision: board.revision }).expect(201)).body as TierListResponse;
+    expect(copy.visibility).toBe("private"); expect(copy.publicSlug).toBeUndefined(); expect(copy.itemCount).toBe(2);
+    board = (await request(server).patch(path).set("Cookie", authenticatedCookie)
+      .send({ revision: board.revision, title: board.title, description: "", visibility: "private" }).expect(200)).body as TierListResponse;
+    await request(server).get(`/api/public/tier-lists/${slug}`).expect(404);
+    await request(server).get(`/api/public/tier-lists/share/${slug}`).expect(404);
+    await request(server).delete(`${path}?revision=${board.revision - 1}`).set("Cookie", authenticatedCookie).expect(409);
+    await request(server).delete(`${path}?revision=${board.revision}`).set("Cookie", otherUserCookie).expect(404);
+    await request(server).delete(`${path}?revision=${board.revision}`).set("Cookie", authenticatedCookie).expect(204);
+    expect((await request(server).get(`/api/tier-lists/${copy.id}`).set("Cookie", authenticatedCookie).expect(200)).body).toMatchObject({ itemCount: 2 });
+    const removed = (await request(server).post(`/api/tier-lists/${copy.id}/remove-item`).set("Cookie", authenticatedCookie)
+      .send({ revision: 0, mediaId: "tv:1" }).expect(200)).body as TierListResponse;
+    expect(removed.itemCount).toBe(1); expect(removed.revision).toBe(1); expect(removed.unranked[0]?.id).toBe("tv:2");
+    await request(server).delete(`/api/tier-lists/${copy.id}?revision=1`).set("Cookie", authenticatedCookie).expect(204);
+    expect(await database.collection("tierLists").countDocuments()).toBe(0);
+    expect(await database.collection("userMedia").countDocuments()).toBe(initialLibraryCount);
   });
 
   it("rate-limits TMDB search per authenticated user", async () => {

@@ -11,3 +11,7 @@ process.env.TMDB_ACCESS_TOKEN = "test-tmdb-token";
 process.env.RESEND_API_KEY = "re_test-only-key";
 process.env.EMAIL_FROM = "Drama Watch <auth@example.com>";
 process.env.LOG_LEVEL = "silent";
+// Do not inherit enabled integrations or credentials from a developer's .env.
+process.env.TELEGRAM_ENABLED = "false";
+process.env.TELEGRAM_BOT_TOKEN = "";
+process.env.TELEGRAM_WEBHOOK_SECRET = "test-only-telegram-webhook-secret-12345678";

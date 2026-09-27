@@ -285,6 +285,36 @@ function createPaths() {
     "/public/wheels/{publicSlug}": {
       get: operation({ id: "getPublicWheel", tag: "Wheels", response: ref("PublicWheelDetailsResponse"), anonymous: true }),
     },
+    "/tier-lists": {
+      get: operation({ id: "listTierLists", tag: "Tier lists", response: array("TierListSummaryResponse") }),
+      post: operation({ id: "createTierList", tag: "Tier lists", request: "CreateTierListDto", response: ref("TierListResponse"), status: "201" }),
+    },
+    "/tier-lists/{tierListId}": {
+      get: operation({ id: "getTierList", tag: "Tier lists", response: ref("TierListResponse") }),
+      patch: operation({ id: "updateTierList", tag: "Tier lists", request: "UpdateTierListDto", response: ref("TierListResponse") }),
+      delete: {
+        ...operation({ id: "deleteTierList", tag: "Tier lists", status: "204" }),
+        parameters: [{ name: "revision", in: "query", required: true, schema: { type: "integer", minimum: 0 } }],
+      },
+    },
+    "/tier-lists/{tierListId}/layout": {
+      patch: operation({ id: "updateTierLayout", tag: "Tier lists", request: "UpdateTierLayoutDto", response: ref("TierListResponse") }),
+    },
+    "/tier-lists/{tierListId}/items": {
+      post: operation({ id: "addTierItems", tag: "Tier lists", request: "AddTierItemsDto", response: ref("TierListResponse") }),
+    },
+    "/tier-lists/{tierListId}/remove-item": {
+      post: operation({ id: "removeTierItem", tag: "Tier lists", request: "RemoveTierItemDto", response: ref("TierListResponse") }),
+    },
+    "/tier-lists/{tierListId}/duplicate": {
+      post: operation({ id: "duplicateTierList", tag: "Tier lists", request: "RevisionDto", response: ref("TierListResponse"), status: "201" }),
+    },
+    "/public/tier-lists/{publicSlug}": {
+      get: operation({ id: "getPublicTierList", tag: "Tier lists", response: ref("PublicTierListResponse"), anonymous: true }),
+    },
+    "/public/tier-lists/share/{publicSlug}": {
+      get: { operationId: "shareTierList", tags: ["Tier lists"], security: [], responses: { "200": { description: "Open Graph share document", content: { "text/html": { schema: { type: "string" } } } } } },
+    },
     "/openapi.json": {
       get: {
         operationId: "getOpenApiContract",

@@ -2,6 +2,28 @@
 
 NestJS backend for Drama Watch, a social watchlist focused on Korean dramas while supporting other television series and films.
 
+## Tier lists
+
+Owner-only `/api/tier-lists` boards are separate from library status, ratings, and priority. Each
+board stores ordered shared-media ObjectIds in customizable tiers and an Unranked pool, with a
+maximum of 20 tiers and 300 titles. Batch additions accept up to 50 TMDB identities and reuse
+existing media snapshots. Defaults are private S–F tiers.
+
+Layout updates (`PATCH /:tierListId/layout`) submit every current title exactly once. All mutations
+include a revision; one MongoDB compare-and-swap writes the whole board and returns HTTP 409 for
+stale edits. This is atomic on standalone MongoDB as well as Atlas. Duplication creates a private
+copy; deleting a board never deletes shared media or library entries.
+
+Public/unlisted links expose ranked titles only through `/api/public/tier-lists/:publicSlug`.
+Returning to private revokes the slug. The `/api/public/tier-lists/share/:publicSlug` HTML endpoint
+provides escaped link-preview metadata. Only public boards enter the sitemap. DTOs and public-safe
+responses are included in the generated OpenAPI contract.
+
+Automated coverage includes DTO validation, ownership, duplicate prevention, complete permutations,
+concurrent-save conflicts, share privacy/revocation, and persistence against local MongoDB.
+
+## Implemented functionality
+
 The current backend foundation provides:
 
 - A strict TypeScript NestJS application.

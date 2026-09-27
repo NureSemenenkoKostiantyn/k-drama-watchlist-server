@@ -2089,6 +2089,377 @@
         ]
       }
     },
+    "/tier-lists": {
+      "get": {
+        "operationId": "listTierLists",
+        "tags": [
+          "Tier lists"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TierListSummaryResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTierList",
+        "tags": [
+          "Tier lists"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTierListDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tier-lists/{tierListId}": {
+      "get": {
+        "operationId": "getTierList",
+        "tags": [
+          "Tier lists"
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tierListId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updateTierList",
+        "tags": [
+          "Tier lists"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTierListDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tierListId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteTierList",
+        "tags": [
+          "Tier lists"
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          }
+        },
+        "parameters": [
+          {
+            "name": "revision",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "tierListId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/tier-lists/{tierListId}/layout": {
+      "patch": {
+        "operationId": "updateTierLayout",
+        "tags": [
+          "Tier lists"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTierLayoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tierListId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/tier-lists/{tierListId}/items": {
+      "post": {
+        "operationId": "addTierItems",
+        "tags": [
+          "Tier lists"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTierItemsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tierListId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/tier-lists/{tierListId}/remove-item": {
+      "post": {
+        "operationId": "removeTierItem",
+        "tags": [
+          "Tier lists"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveTierItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tierListId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/tier-lists/{tierListId}/duplicate": {
+      "post": {
+        "operationId": "duplicateTierList",
+        "tags": [
+          "Tier lists"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "tierListId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/public/tier-lists/{publicSlug}": {
+      "get": {
+        "operationId": "getPublicTierList",
+        "tags": [
+          "Tier lists"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTierListResponse"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "publicSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/public/tier-lists/share/{publicSlug}": {
+      "get": {
+        "operationId": "shareTierList",
+        "tags": [
+          "Tier lists"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Open Graph share document",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "publicSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
     "/openapi.json": {
       "get": {
         "operationId": "getOpenApiContract",
@@ -2271,6 +2642,33 @@
           },
           "reorderWheelItemsRequest": {
             "$ref": "#/components/schemas/ReorderWheelItemsDto"
+          },
+          "tierList": {
+            "$ref": "#/components/schemas/TierListResponse"
+          },
+          "tierListSummary": {
+            "$ref": "#/components/schemas/TierListSummaryResponse"
+          },
+          "publicTierList": {
+            "$ref": "#/components/schemas/PublicTierListResponse"
+          },
+          "createTierList": {
+            "$ref": "#/components/schemas/CreateTierListDto"
+          },
+          "updateTierList": {
+            "$ref": "#/components/schemas/UpdateTierListDto"
+          },
+          "updateTierLayout": {
+            "$ref": "#/components/schemas/UpdateTierLayoutDto"
+          },
+          "addTierItems": {
+            "$ref": "#/components/schemas/AddTierItemsDto"
+          },
+          "removeTierItem": {
+            "$ref": "#/components/schemas/RemoveTierItemDto"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/RevisionDto"
           }
         },
         "required": [
@@ -2325,7 +2723,16 @@
           "updateWheelMemberRequest",
           "addWheelItemRequest",
           "updateWheelItemRequest",
-          "reorderWheelItemsRequest"
+          "reorderWheelItemsRequest",
+          "tierList",
+          "tierListSummary",
+          "publicTierList",
+          "createTierList",
+          "updateTierList",
+          "updateTierLayout",
+          "addTierItems",
+          "removeTierItem",
+          "revision"
         ],
         "additionalProperties": false,
         "description": "Root used to generate the public OpenAPI components consumed by the Angular application. Only HTTP request and public-safe response types belong here; database documents and internal service types must never be referenced."
@@ -4685,6 +5092,406 @@
         },
         "required": [
           "itemIds"
+        ],
+        "additionalProperties": false
+      },
+      "TierListResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/TierListVisibility"
+          },
+          "publicSlug": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number"
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierRowResponse"
+            }
+          },
+          "unranked": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierListMedia"
+            }
+          }
+        },
+        "required": [
+          "createdAt",
+          "description",
+          "id",
+          "itemCount",
+          "revision",
+          "tiers",
+          "title",
+          "unranked",
+          "updatedAt",
+          "visibility"
+        ],
+        "additionalProperties": false
+      },
+      "TierListVisibility": {
+        "type": "string",
+        "enum": [
+          "private",
+          "unlisted",
+          "public"
+        ]
+      },
+      "TierRowResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "$ref": "#/components/schemas/TierColor"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierListMedia"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "color",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "TierColor": {
+        "type": "string",
+        "enum": [
+          "red",
+          "orange",
+          "yellow",
+          "green",
+          "blue",
+          "purple",
+          "pink",
+          "gray"
+        ]
+      },
+      "TierListMedia": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mediaType": {
+            "$ref": "#/components/schemas/MediaType"
+          },
+          "tmdbId": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "originalTitle": {
+            "type": "string"
+          },
+          "posterUrl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "mediaType",
+          "tmdbId",
+          "title",
+          "originalTitle"
+        ],
+        "additionalProperties": false
+      },
+      "TierListSummaryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/TierListVisibility"
+          },
+          "publicSlug": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number"
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "visibility",
+          "revision",
+          "itemCount",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "PublicTierListResponse": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "unlisted"
+            ]
+          },
+          "publicSlug": {
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/PublicUserProfileResponse"
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string"
+                },
+                "color": {
+                  "$ref": "#/components/schemas/TierColor"
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TierListMedia"
+                  }
+                }
+              },
+              "required": [
+                "label",
+                "color",
+                "items"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "visibility",
+          "publicSlug",
+          "tiers",
+          "itemCount",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "CreateTierListDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateTierListDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/TierListVisibility"
+          }
+        },
+        "required": [
+          "description",
+          "revision",
+          "title",
+          "visibility"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateTierLayoutDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierPlacementDto"
+            }
+          },
+          "unrankedMediaIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "revision",
+          "tiers",
+          "unrankedMediaIds"
+        ],
+        "additionalProperties": false
+      },
+      "TierPlacementDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "color": {
+            "$ref": "#/components/schemas/TierColor"
+          },
+          "mediaIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "color",
+          "mediaIds"
+        ],
+        "additionalProperties": false
+      },
+      "AddTierItemsDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TierMediaIdentityDto"
+            }
+          }
+        },
+        "required": [
+          "items",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "TierMediaIdentityDto": {
+        "type": "object",
+        "properties": {
+          "mediaType": {
+            "$ref": "#/components/schemas/MediaType"
+          },
+          "tmdbId": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "mediaType",
+          "tmdbId"
+        ],
+        "additionalProperties": false
+      },
+      "RemoveTierItemDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          },
+          "mediaId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "mediaId",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "RevisionDto": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "revision"
         ],
         "additionalProperties": false
       }

@@ -1,4 +1,6 @@
 import type { MediaFriendContextResponse } from "../common/types/friend-context.types";
+import type { TierListResponse, TierListSummaryResponse, PublicTierListResponse } from "../common/types/tier-list.types";
+import type { CreateTierListDto, UpdateTierListDto, UpdateTierLayoutDto, AddTierItemsDto, RemoveTierItemDto, RevisionDto } from "../modules/tier-lists/dto/tier-list.dto";
 import type {
   FriendshipResponse,
   FriendshipsResponse,
@@ -129,4 +131,13 @@ export interface PublicApiContract {
   addWheelItemRequest: AddWheelItemDto;
   updateWheelItemRequest: UpdateWheelItemDto;
   reorderWheelItemsRequest: ReorderWheelItemsDto;
+  tierList: TierListResponse;
+  tierListSummary: TierListSummaryResponse;
+  publicTierList: PublicTierListResponse;
+  createTierList: CreateTierListDto;
+  updateTierList: UpdateTierListDto;
+  updateTierLayout: UpdateTierLayoutDto;
+  addTierItems: AddTierItemsDto;
+  removeTierItem: RemoveTierItemDto;
+  revision: RevisionDto;
 }

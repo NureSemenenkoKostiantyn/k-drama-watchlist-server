@@ -11,6 +11,16 @@ import {
   LibraryVisibility,
 } from "../../../common/types/settings.types";
 
+export class UpdateTelegramNotificationsDto {
+  @IsOptional()
+  @IsBoolean()
+  friendRequests?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  titleSuggestions?: boolean;
+}
+
 export class UpdateSettingsDto {
   @IsOptional()
   @IsEnum(LibraryVisibility)
@@ -24,14 +34,4 @@ export class UpdateSettingsDto {
   @ValidateNested()
   @Type(() => UpdateTelegramNotificationsDto)
   telegramNotifications?: UpdateTelegramNotificationsDto;
-}
-
-export class UpdateTelegramNotificationsDto {
-  @IsOptional()
-  @IsBoolean()
-  friendRequests?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  titleSuggestions?: boolean;
 }
