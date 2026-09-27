@@ -19,6 +19,7 @@ import { configureApplication } from "../src/app.setup";
 import { tmdbSearchRateLimit } from "../src/common/throttling/throttling.constants";
 import { MediaType } from "../src/common/types/media.types";
 import {
+  TierListSource,
   type PublicTierListResponse,
   type TierListResponse,
   type TierListSummaryResponse,
@@ -3077,7 +3078,9 @@ describe("application (e2e)", () => {
     const listed = (
       await request(server).get("/api/tier-lists").set("Cookie", authenticatedCookie).expect(200)
     ).body as TierListSummaryResponse[];
-    const auto = listed.find((item) => item.source === "library_all")!;
+    const auto = listed.find(
+      (item) => item.source === TierListSource.LibraryAll,
+    )!;
     const autoPath = `/api/tier-lists/${auto.id}`;
     const published = (
       await request(server)
