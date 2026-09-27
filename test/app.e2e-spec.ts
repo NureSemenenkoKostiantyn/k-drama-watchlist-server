@@ -18,7 +18,11 @@ import { AppModule } from "../src/app.module";
 import { configureApplication } from "../src/app.setup";
 import { tmdbSearchRateLimit } from "../src/common/throttling/throttling.constants";
 import { MediaType } from "../src/common/types/media.types";
-import { type TierListResponse, type PublicTierListResponse } from "../src/common/types/tier-list.types";
+import {
+  type PublicTierListResponse,
+  type TierListResponse,
+  type TierListSummaryResponse,
+} from "../src/common/types/tier-list.types";
 import { MongooseDatabaseService } from "../src/database/mongoose-database.service";
 import {
   type AuthenticationEmailInput,
@@ -3067,6 +3071,59 @@ describe("application (e2e)", () => {
     // Auto-synced boards for both users persist by design; only the manual board and its duplicate are gone.
     expect(await database.collection("tierLists").countDocuments({ source: { $ne: "library_all" } })).toBe(0);
     expect(await database.collection("userMedia").countDocuments()).toBe(initialLibraryCount);
+  });
+
+  it("publishes an auto-synced board's visibility while keeping its titles library-managed", async () => {
+    const listed = (
+      await request(server).get("/api/tier-lists").set("Cookie", authenticatedCookie).expect(200)
+    ).body as TierListSummaryResponse[];
+    const auto = listed.find((item) => item.source === "library_all")!;
+    const autoPath = `/api/tier-lists/${auto.id}`;
+    const published = (
+      await request(server)
+        .patch(autoPath)
+        .set("Cookie", authenticatedCookie)
+        .send({ revision: auto.revision, title: auto.title, description: auto.description, visibility: "public" })
+        .expect(200)
+    ).body as TierListResponse;
+    expect(published.visibility).toBe("public");
+    expect(published.publicSlug).toMatch(/^[\w-]{16}$/);
+
+    await request(server).get(`/api/public/tier-lists/${published.publicSlug}`).expect(200);
+
+    await request(server)
+      .post(`${autoPath}/items`)
+      .set("Cookie", authenticatedCookie)
+      .send({ revision: published.revision, items: [{ mediaType: "tv", tmdbId: 1 }] })
+      .expect(400)
+      .expect({
+        error: {
+          code: "AUTO_TIER_LIST_READ_ONLY",
+          message:
+            "Titles on an auto-synced tier list follow your library and can't be changed directly. Duplicate it to edit a snapshot.",
+        },
+      });
+    await request(server)
+      .delete(`${autoPath}?revision=${published.revision}`)
+      .set("Cookie", authenticatedCookie)
+      .expect(400)
+      .expect({
+        error: {
+          code: "AUTO_TIER_LIST_READ_ONLY",
+          message:
+            "Titles on an auto-synced tier list follow your library and can't be changed directly. Duplicate it to edit a snapshot.",
+        },
+      });
+
+    const hidden = (
+      await request(server)
+        .patch(autoPath)
+        .set("Cookie", authenticatedCookie)
+        .send({ revision: published.revision, title: auto.title, description: auto.description, visibility: "private" })
+        .expect(200)
+    ).body as TierListResponse;
+    expect(hidden.publicSlug).toBeUndefined();
+    await request(server).get(`/api/public/tier-lists/${published.publicSlug}`).expect(404);
   });
 
   it("rate-limits TMDB search per authenticated user", async () => {

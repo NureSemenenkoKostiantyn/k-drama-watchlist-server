@@ -338,15 +338,51 @@ describe("TierListsService", () => {
     expect(mediaRepository.findByIds).toHaveBeenCalledWith([first._id]);
   });
 
-  it("never exposes an auto board even if its stored visibility is wrong", async () => {
+  it("allows publishing an auto board and exposes it like a manual one", async () => {
+    board.source = TierListSource.LibraryAll;
+    board.tiers[0]!.mediaIds = [first._id];
+    board.unrankedMediaIds = [];
+    libraryRepository.findTierEligibleMediaIds.mockResolvedValue([
+      first._id,
+      second._id,
+    ]);
+    const updated = await service.update(
+      owner.toHexString(),
+      board._id.toHexString(),
+      {
+        revision: 3,
+        title: board.title,
+        description: board.description,
+        visibility: TierListVisibility.Public,
+      },
+    );
+    expect(updated.visibility).toBe("public");
+    expect(updated.publicSlug).toMatch(/^[\w-]{16}$/);
+
+    repository.findPublic.mockResolvedValue({
+      ...board,
+      visibility: TierListVisibility.Public,
+      publicSlug: updated.publicSlug!,
+    });
+    const result = await service.getPublic(updated.publicSlug!);
+    expect(result.itemCount).toBe(2);
+    expect(result.tiers[0]?.items[0]?.id).toBe("tv:1");
+    expect(result).not.toHaveProperty("unranked");
+  });
+
+  it("still refuses to add, remove, or delete titles on a published auto board", async () => {
     board.source = TierListSource.LibraryAll;
     board.visibility = TierListVisibility.Public;
     board.publicSlug = "abcdefghijklmnop";
-    repository.findPublic.mockResolvedValue(board);
-    await expect(service.getPublic(board.publicSlug)).rejects.toMatchObject({
-      code: "TIER_LIST_NOT_FOUND",
-    });
-    expect(libraryRepository.findTierEligibleMediaIds).not.toHaveBeenCalled();
+    await expect(
+      service.add(owner.toHexString(), board._id.toHexString(), {
+        revision: 3,
+        items: [{ mediaType: MediaType.Tv, tmdbId: 9 }],
+      }),
+    ).rejects.toMatchObject({ code: "AUTO_TIER_LIST_READ_ONLY" });
+    await expect(
+      service.delete(owner.toHexString(), board._id.toHexString(), 3),
+    ).rejects.toMatchObject({ code: "AUTO_TIER_LIST_READ_ONLY" });
   });
 
   it("rejects a revoked link and a concurrently changed deletion", async () => {

@@ -100,7 +100,6 @@ export class TierListsRepository {
     return this.model
       .findOne({
         publicSlug,
-        source: { $in: [null, TierListSource.Manual] },
         visibility: {
           $in: [TierListVisibility.Public, TierListVisibility.Unlisted],
         },
@@ -150,7 +149,6 @@ export class TierListsRepository {
     return this.model
       .find({
         visibility: TierListVisibility.Public,
-        source: { $in: [null, TierListSource.Manual] },
         publicSlug: { $type: "string" },
       })
       .select({ publicSlug: 1, updatedAt: 1, _id: 0 })

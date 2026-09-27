@@ -122,7 +122,6 @@ export class TierListsService {
     input: UpdateTierListDto,
   ): Promise<TierListResponse> {
     const board = await this.owned(userId, id, input.revision);
-    if (isAuto(board)) throw autoReadonly();
     board.title = input.title;
     board.description = input.description;
     board.visibility = input.visibility;
@@ -297,7 +296,6 @@ export class TierListsService {
     const board = await this.repository.findPublic(slug);
     if (
       !board ||
-      isAuto(board) ||
       board.visibility === TierListVisibility.Private ||
       !board.publicSlug
     )
@@ -447,7 +445,7 @@ function autoReadonly(): ApiException {
     statusCode: 400,
     code: "AUTO_TIER_LIST_READ_ONLY",
     message:
-      "Titles and settings on an auto-synced tier list follow your library. Duplicate it to edit a snapshot.",
+      "Titles on an auto-synced tier list follow your library and can't be changed directly. Duplicate it to edit a snapshot.",
   });
 }
 
