@@ -10,6 +10,10 @@ export interface UserSettingsDocument {
   userId: Types.ObjectId;
   libraryVisibility: LibraryVisibility;
   activityVisibility: ActivityVisibility;
+  telegramNotifications: {
+    friendRequests: boolean;
+    titleSuggestions: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +34,25 @@ export const UserSettingsSchema = new Schema<UserSettingsDocument>(
       type: String,
       enum: Object.values(ActivityVisibility),
       default: ActivityVisibility.Private,
+      required: true,
+    },
+    telegramNotifications: {
+      type: new Schema(
+        {
+          friendRequests: {
+            type: Boolean,
+            default: false,
+            required: true,
+          },
+          titleSuggestions: {
+            type: Boolean,
+            default: false,
+            required: true,
+          },
+        },
+        { _id: false },
+      ),
+      default: () => ({ friendRequests: false, titleSuggestions: false }),
       required: true,
     },
   },

@@ -4,8 +4,9 @@ import { ConfigService } from "@nestjs/config";
 import { type Environment } from "../../config/environment";
 import { SharedListsRepository } from "../shared-lists/shared-lists.repository";
 import { WheelsRepository } from "../wheels/wheels.repository";
+import { TierListsRepository } from "../tier-lists/tier-lists.repository";
 
-const maximumEntriesPerResource = 24_999;
+const maximumEntriesPerResource = 16_666;
 
 interface SitemapUrl {
   location: string;
@@ -20,6 +21,7 @@ export class SeoService {
     configService: ConfigService<Environment, true>,
     private readonly sharedListsRepository: SharedListsRepository,
     private readonly wheelsRepository: WheelsRepository,
+    private readonly tierListsRepository: TierListsRepository,
   ) {
     this.frontendUrl = configService
       .getOrThrow<string>("FRONTEND_URL")
@@ -27,16 +29,21 @@ export class SeoService {
   }
 
   async renderSitemap(): Promise<string> {
-    const [lists, wheels] = await Promise.all([
+    const [lists, wheels, tiers] = await Promise.all([
       this.sharedListsRepository.findPublicSitemapEntries(
         maximumEntriesPerResource,
       ),
       this.wheelsRepository.findPublicSitemapEntries(
         maximumEntriesPerResource,
       ),
+      this.tierListsRepository.findPublicSitemapEntries(maximumEntriesPerResource),
     ]);
     const urls: SitemapUrl[] = [
       { location: `${this.frontendUrl}/lists/discover` },
+      ...tiers.map((list) => ({
+        location: `${this.frontendUrl}/tier-lists/public/${encodeURIComponent(list.publicSlug)}`,
+        lastModified: list.updatedAt,
+      })),
       ...lists.map((list) => ({
         location: `${this.frontendUrl}/lists/public/${encodeURIComponent(list.publicSlug)}`,
         lastModified: list.updatedAt,

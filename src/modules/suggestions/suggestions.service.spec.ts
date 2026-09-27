@@ -100,6 +100,7 @@ describe("SuggestionsService", () => {
       type: NotificationType.SuggestionReceived,
       actorUserId: sender._id,
       entityId: suggestion._id,
+      deliveryContext: { mediaTitle: media.title },
     });
   });
 

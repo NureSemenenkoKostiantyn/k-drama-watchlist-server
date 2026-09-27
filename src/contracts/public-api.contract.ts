@@ -1,4 +1,6 @@
 import type { MediaFriendContextResponse } from "../common/types/friend-context.types";
+import type { TierListResponse, TierListSummaryResponse, PublicTierListResponse } from "../common/types/tier-list.types";
+import type { CreateTierListDto, UpdateTierListDto, UpdateTierLayoutDto, AddTierItemsDto, RemoveTierItemDto, RevisionDto } from "../modules/tier-lists/dto/tier-list.dto";
 import type {
   FriendshipResponse,
   FriendshipsResponse,
@@ -20,6 +22,7 @@ import type {
   SharedListResponse,
 } from "../common/types/shared-list.types";
 import type { StatisticsOverviewResponse } from "../common/types/statistics.types";
+import type { UserSettingsResponse } from "../common/types/settings.types";
 import type {
   TelegramConnectionResponse,
   TelegramLinkResponse,
@@ -45,6 +48,7 @@ import type { UpdateLibraryStatusDto } from "../modules/library/dto/update-libra
 import type { UpdatePlaybackPreferenceDto } from "../modules/library/dto/update-playback-preference.dto";
 import type { UpdateProgressDto } from "../modules/library/dto/update-progress.dto";
 import type { UpdateRatingDto } from "../modules/library/dto/update-rating.dto";
+import type { UpdateSettingsDto } from "../modules/settings/dto/update-settings.dto";
 import type { AddSharedListItemDto } from "../modules/shared-lists/dto/add-shared-list-item.dto";
 import type { CreateSharedListDto } from "../modules/shared-lists/dto/create-shared-list.dto";
 import type { CreateSharedListInviteDto } from "../modules/shared-lists/dto/create-shared-list-invite.dto";
@@ -81,6 +85,9 @@ export interface PublicApiContract {
   updatePlaybackPreferenceRequest: UpdatePlaybackPreferenceDto;
 
   statisticsOverviewResponse: StatisticsOverviewResponse;
+
+  userSettingsResponse: UserSettingsResponse;
+  updateSettingsRequest: UpdateSettingsDto;
 
   telegramConnectionResponse: TelegramConnectionResponse;
   telegramLinkResponse: TelegramLinkResponse;
@@ -124,4 +131,13 @@ export interface PublicApiContract {
   addWheelItemRequest: AddWheelItemDto;
   updateWheelItemRequest: UpdateWheelItemDto;
   reorderWheelItemsRequest: ReorderWheelItemsDto;
+  tierList: TierListResponse;
+  tierListSummary: TierListSummaryResponse;
+  publicTierList: PublicTierListResponse;
+  createTierList: CreateTierListDto;
+  updateTierList: UpdateTierListDto;
+  updateTierLayout: UpdateTierLayoutDto;
+  addTierItems: AddTierItemsDto;
+  removeTierItem: RemoveTierItemDto;
+  revision: RevisionDto;
 }

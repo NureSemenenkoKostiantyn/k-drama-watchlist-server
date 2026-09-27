@@ -17,5 +17,9 @@ describe("ContractsController", () => {
     expect(document.components.schemas).not.toHaveProperty(
       "UserMediaDocument",
     );
+    expect(document.components.schemas).toHaveProperty("TierListResponse");
+    expect(document.components.schemas).not.toHaveProperty("TierListDocument");
+    expect(document.paths["/tier-lists/{tierListId}/layout"].patch.operationId).toBe("updateTierLayout");
+    expect(document.paths["/public/tier-lists/{publicSlug}"].get.security).toEqual([]);
   });
 });

@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 
 import { type Environment } from "../../config/environment";
+import { type PublicTierListResponse, TierListVisibility } from "../../common/types/tier-list.types";
 import {
   SharedListVisibility,
   type PublicSharedListDetailsResponse,
@@ -64,6 +65,19 @@ export class OpenGraphService {
         list.itemCount,
         list.items.map((item) => item.media),
       ),
+    });
+  }
+
+  renderTierList(list: PublicTierListResponse): string {
+    const canonicalUrl = `${this.frontendUrl}/tier-lists/public/${encodeURIComponent(list.publicSlug)}`;
+    const media = list.tiers.flatMap((tier) => tier.items);
+    const imageUrl = preferredMediaImage(media);
+    const description = normalizeDescription(list.description, `Explore ${list.itemCount} ranked titles in ${list.title}.`);
+    return renderDocument({
+      title: `${list.title} · Drama Watch`, description, canonicalUrl,
+      ...(imageUrl ? { imageUrl } : {}), imageAlt: `Preview of ${list.title}`,
+      allowIndexing: list.visibility === TierListVisibility.Public,
+      structuredData: buildCollectionStructuredData(list.title, description, canonicalUrl, list.itemCount, media),
     });
   }
 

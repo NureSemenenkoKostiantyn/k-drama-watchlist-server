@@ -44,6 +44,10 @@ describe("DataExportService", () => {
       get: getSettings.mockResolvedValue({
         libraryVisibility: LibraryVisibility.Private,
         activityVisibility: ActivityVisibility.Friends,
+        telegramNotifications: {
+          friendRequests: false,
+          titleSuggestions: false,
+        },
       }),
     };
     const categories = {

@@ -31,6 +31,12 @@ export class SettingsService {
         settings?.libraryVisibility ?? LibraryVisibility.Private,
       activityVisibility:
         settings?.activityVisibility ?? ActivityVisibility.Private,
+      telegramNotifications: {
+        friendRequests:
+          settings?.telegramNotifications.friendRequests ?? false,
+        titleSuggestions:
+          settings?.telegramNotifications.titleSuggestions ?? false,
+      },
     };
   }
 
@@ -51,7 +57,9 @@ export class SettingsService {
   ): Promise<UserSettingsResponse> {
     if (
       input.libraryVisibility === undefined &&
-      input.activityVisibility === undefined
+      input.activityVisibility === undefined &&
+      input.telegramNotifications?.friendRequests === undefined &&
+      input.telegramNotifications?.titleSuggestions === undefined
     ) {
       throw settingsUpdateRequired();
     }
@@ -63,6 +71,7 @@ export class SettingsService {
     return {
       libraryVisibility: settings.libraryVisibility,
       activityVisibility: settings.activityVisibility,
+      telegramNotifications: settings.telegramNotifications,
     };
   }
 }

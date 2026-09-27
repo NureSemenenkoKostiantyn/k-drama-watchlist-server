@@ -51,6 +51,10 @@ describe("PublicLibraryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Private,
       activityVisibility: ActivityVisibility.Private,
+      telegramNotifications: {
+        friendRequests: false,
+        titleSuggestions: false,
+      },
     });
 
     await expect(
@@ -82,6 +86,10 @@ describe("PublicLibraryService", () => {
     getForUser.mockResolvedValue({
       libraryVisibility: LibraryVisibility.Friends,
       activityVisibility: ActivityVisibility.Private,
+      telegramNotifications: {
+        friendRequests: false,
+        titleSuggestions: false,
+      },
     });
     areAcceptedFriends.mockResolvedValue(true);
 
@@ -105,6 +113,10 @@ describe("PublicLibraryService", () => {
     getForUser.mockResolvedValueOnce({
       libraryVisibility: LibraryVisibility.Friends,
       activityVisibility: ActivityVisibility.Private,
+      telegramNotifications: {
+        friendRequests: false,
+        titleSuggestions: false,
+      },
     });
     areAcceptedFriends.mockResolvedValue(false);
 
@@ -123,6 +135,10 @@ describe("PublicLibraryService", () => {
     getForUser.mockResolvedValueOnce({
       libraryVisibility: LibraryVisibility.Public,
       activityVisibility: ActivityVisibility.Private,
+      telegramNotifications: {
+        friendRequests: false,
+        titleSuggestions: false,
+      },
     });
 
     await expect(

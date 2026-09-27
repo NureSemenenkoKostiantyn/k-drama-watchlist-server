@@ -2,6 +2,28 @@
 
 NestJS backend for Drama Watch, a social watchlist focused on Korean dramas while supporting other television series and films.
 
+## Tier lists
+
+Owner-only `/api/tier-lists` boards are separate from library status, ratings, and priority. Each
+board stores ordered shared-media ObjectIds in customizable tiers and an Unranked pool, with a
+maximum of 20 tiers and 300 titles. Batch additions accept up to 50 TMDB identities and reuse
+existing media snapshots. Defaults are private S–F tiers.
+
+Layout updates (`PATCH /:tierListId/layout`) submit every current title exactly once. All mutations
+include a revision; one MongoDB compare-and-swap writes the whole board and returns HTTP 409 for
+stale edits. This is atomic on standalone MongoDB as well as Atlas. Duplication creates a private
+copy; deleting a board never deletes shared media or library entries.
+
+Public/unlisted links expose ranked titles only through `/api/public/tier-lists/:publicSlug`.
+Returning to private revokes the slug. The `/api/public/tier-lists/share/:publicSlug` HTML endpoint
+provides escaped link-preview metadata. Only public boards enter the sitemap. DTOs and public-safe
+responses are included in the generated OpenAPI contract.
+
+Automated coverage includes DTO validation, ownership, duplicate prevention, complete permutations,
+concurrent-save conflicts, share privacy/revocation, and persistence against local MongoDB.
+
+## Implemented functionality
+
 The current backend foundation provides:
 
 - A strict TypeScript NestJS application.
@@ -37,7 +59,8 @@ The current backend foundation provides:
 - Public user profiles and protected weighted name/username discovery without exposing email
   addresses.
 - Friend-only title suggestions with transactional acceptance into the recipient's library.
-- Persistent social notifications with owner-scoped read state and unread counts.
+- Persistent social notifications with owner-scoped read state and unread counts, plus independent
+  opt-in Telegram delivery for friend requests and received title suggestions.
 - Accepted-friend media context with public status and rating projections.
 - Reusable user settings with private-by-default library and activity visibility.
 - Paginated friend libraries with server-enforced private, friends-only, and public access.
@@ -252,6 +275,13 @@ items that the linked owner or editor may spin; selecting one delegates to the e
 so authorization, weighted selection, avoid-recent behavior, and persisted history remain identical
 to the web application. The selected title is posted back to the private chat with a Mini App link.
 
+Linked users can independently opt into friend-request and received-title-suggestion messages from
+the Angular Settings page. The preferences are stored under
+`telegramNotifications.friendRequests` and `telegramNotifications.titleSuggestions`, and both
+default to `false`. Suggestion messages include the media title. Delivery starts only after the
+persistent in-app notification succeeds; Telegram lookup and delivery failures are logged without
+failing or rolling back the social action.
+
 Ordinary API routes are protected by the integration's global guard. Health checks and other
 intentionally public endpoints must use `@AllowAnonymous()` explicitly. Controllers must derive the
 current user from the authenticated session rather than accepting a user ID as authorization proof.
@@ -357,9 +387,12 @@ GET   /api/settings
 PATCH /api/settings
 ```
 
-`libraryVisibility` and `activityVisibility` each accept `private`, `friends`, and `public`. Missing
-settings resolve both fields to `private` without writing a document. Updates use one `userSettings`
-document per Better Auth user, enforced by a unique `userId` index.
+`libraryVisibility` and `activityVisibility` each accept `private`, `friends`, and `public`.
+`telegramNotifications.friendRequests` and `telegramNotifications.titleSuggestions` are independent
+boolean consent flags. Missing settings resolve both visibility fields to `private` and Telegram
+notification preferences to `false` without writing a document. Field-level updates preserve every
+unmentioned preference. Updates use one `userSettings` document per Better Auth user, enforced by a
+unique `userId` index.
 
 Libraries are browsed through:
 

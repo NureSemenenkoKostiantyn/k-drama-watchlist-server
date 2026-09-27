@@ -5,6 +5,7 @@ import { type Environment } from "../../config/environment";
 import { type SharedListsRepository } from "../shared-lists/shared-lists.repository";
 import { type WheelsRepository } from "../wheels/wheels.repository";
 import { SeoService } from "./seo.service";
+import { type TierListsRepository } from "../tier-lists/tier-lists.repository";
 
 describe("SeoService", () => {
   const findPublicListEntries = jest.fn<
@@ -23,6 +24,7 @@ describe("SeoService", () => {
     {
       findPublicSitemapEntries: findPublicWheelEntries,
     } as unknown as WheelsRepository,
+    { findPublicSitemapEntries: () => Promise.resolve([{ publicSlug: "ranked-titles-123", updatedAt: new Date("2026-09-01") }]) } as unknown as TierListsRepository,
   );
 
   beforeEach(() => {
@@ -58,7 +60,8 @@ describe("SeoService", () => {
     expect(xml).toContain(
       "<lastmod>2026-08-24T10:00:00.000Z</lastmod>",
     );
-    expect(findPublicListEntries).toHaveBeenCalledWith(24_999);
-    expect(findPublicWheelEntries).toHaveBeenCalledWith(24_999);
+    expect(xml).toContain("https://dahyun.best/tier-lists/public/ranked-titles-123");
+    expect(findPublicListEntries).toHaveBeenCalledWith(16_666);
+    expect(findPublicWheelEntries).toHaveBeenCalledWith(16_666);
   });
 });
