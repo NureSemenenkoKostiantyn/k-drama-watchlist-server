@@ -1659,6 +1659,7 @@ describe("application (e2e)", () => {
       .expect({
         libraryVisibility: "private",
         activityVisibility: "private",
+        tierBoardMode: "all",
         telegramNotifications: {
           friendRequests: false,
           titleSuggestions: false,
@@ -1763,6 +1764,7 @@ describe("application (e2e)", () => {
       .expect({
         libraryVisibility: "friends",
         activityVisibility: "private",
+        tierBoardMode: "all",
         telegramNotifications: {
           friendRequests: true,
           titleSuggestions: true,
@@ -1777,6 +1779,7 @@ describe("application (e2e)", () => {
       .expect({
         libraryVisibility: "friends",
         activityVisibility: "private",
+        tierBoardMode: "all",
         telegramNotifications: {
           friendRequests: false,
           titleSuggestions: true,
@@ -2991,9 +2994,16 @@ describe("application (e2e)", () => {
     let board = created.body as TierListResponse;
     const path = `/api/tier-lists/${board.id}`;
     await request(server).get("/api/tier-lists").set("Cookie", authenticatedCookie).expect(200).expect((response) => {
-      expect(response.body).toEqual([expect.objectContaining({ id: board.id, itemCount: 0 })]);
+      expect(response.body).toEqual([
+        expect.objectContaining({ source: "library_all", itemCount: 0 }),
+        expect.objectContaining({ id: board.id, itemCount: 0 }),
+      ]);
     });
-    await request(server).get("/api/tier-lists").set("Cookie", otherUserCookie).expect(200).expect([]);
+    await request(server).get("/api/tier-lists").set("Cookie", otherUserCookie).expect(200).expect((response) => {
+      expect(response.body).toEqual([
+        expect.objectContaining({ source: "library_all", itemCount: 0 }),
+      ]);
+    });
     const { database } = await databaseService.getNativeConnection();
     const initialLibraryCount = await database.collection("userMedia").countDocuments();
     expect(board.visibility).toBe("private"); expect(board.tiers.map((row) => row.label)).toEqual(["S", "A", "B", "C", "D", "F"]);
@@ -3054,7 +3064,8 @@ describe("application (e2e)", () => {
       .send({ revision: 0, mediaId: "tv:1" }).expect(200)).body as TierListResponse;
     expect(removed.itemCount).toBe(1); expect(removed.revision).toBe(1); expect(removed.unranked[0]?.id).toBe("tv:2");
     await request(server).delete(`/api/tier-lists/${copy.id}?revision=1`).set("Cookie", authenticatedCookie).expect(204);
-    expect(await database.collection("tierLists").countDocuments()).toBe(0);
+    // Auto-synced boards for both users persist by design; only the manual board and its duplicate are gone.
+    expect(await database.collection("tierLists").countDocuments({ source: { $ne: "library_all" } })).toBe(0);
     expect(await database.collection("userMedia").countDocuments()).toBe(initialLibraryCount);
   });
 
